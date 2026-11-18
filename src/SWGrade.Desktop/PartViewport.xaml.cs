@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using SWGrade.Domain;
+using SWGrade.SolidWorks;
 
 namespace SWGrade.Desktop
 {
@@ -237,12 +238,21 @@ namespace SWGrade.Desktop
                     : "着色显示采样发现相距超过约 0.02 mm 的三角片。") +
                     " 网格供目视复核。"
                 : preview?.Issue ?? "未取得两份网格，无法显示叠加。";
+            if (IsFlatPattern && pair && !preparing && (currentModel == null || referenceModel == null))
+            {
+                string currentIssue = currentModel == null ? "当前件：" + FlatIssue(Scene.Current) : null;
+                string referenceIssue = referenceModel == null ? "参考件：" + FlatIssue(Scene.Reference) : null;
+                GeometryNotice.Text = currentIssue == null ? referenceIssue : referenceIssue == null ? currentIssue :
+                    currentIssue + Environment.NewLine + referenceIssue;
+            }
             EmptyMessage.Visibility = geometry == null ? Visibility.Visible : Visibility.Collapsed;
-            string meshIssue = IsFlatPattern
-                ? item?.FlatPreviewIssue ?? item?.Inspection.SheetMetal?.Issue ?? "未读取到钣金展开网格。"
+            string meshIssue = IsFlatPattern ? FlatIssue(item)
                 : item?.PreviewIssue ?? "未取得可显示的模型网格。";
             EmptyMessage.Text = preparing ? "正在准备模型和叠加差异…" : prepareIssue ?? meshIssue;
         }
+
+        private static string FlatIssue(CadPartPreview item) =>
+            item?.FlatPreviewIssue ?? item?.Inspection.SheetMetal?.Issue ?? "未读取到钣金展开网格。";
 
         private void ToggleShared(object sender, RoutedEventArgs args) => Display();
 

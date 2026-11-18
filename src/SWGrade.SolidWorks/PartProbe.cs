@@ -195,8 +195,12 @@ namespace SWGrade.SolidWorks
             }
             catch (Exception exception)
             {
-                result.SheetMetal.Issue = "SOLIDWORKS 未能生成可核实的展开实体。请核对平板型式与重建。";
                 cad.Log("钣金展开失败：" + CadAnalysis.DescribeError(exception));
+                result.SheetMetal.Issue = exception is InvalidOperationException ? exception.Message :
+                    "SOLIDWORKS 未能生成可核实的展开实体。";
+                var failures = ReadRebuildFailures(model);
+                if (failures.Count > 0)
+                    result.SheetMetal.Issue += " 重建失败的特征：" + string.Join("、", failures) + "。";
             }
         }
 
@@ -205,14 +209,53 @@ namespace SWGrade.SolidWorks
             if (!(bool)cad.Call(Feature, feature, "IsRolledBack"))
                 return;
 
-            // A rolled-back feature may change suppression without producing any geometry.
+            // EditRollback can report success before the target feature is restored.
             var manager = cad.Get(Model, model, "FeatureManager");
             int end = cad.Constant("swMoveRollbackBarTo_e", "swMoveRollbackBarToEnd");
-            if (!(bool)cad.Call("IFeatureManager", manager, "EditRollback", end, "") ||
-                (bool)cad.Call(Feature, feature, "IsRolledBack") ||
-                !(bool)cad.Call(Model, model, "ForceRebuild3", false))
-                throw new InvalidOperationException("平板型式仍处于回滚状态或无法重建。");
-            cad.Log("已将只读副本的回滚条移至特征树末尾。");
+            bool movedToEnd = (bool)cad.Call("IFeatureManager", manager, "EditRollback", end, "");
+            if (!movedToEnd || (bool)cad.Call(Feature, feature, "IsRolledBack"))
+            {
+                int after = cad.Constant("swMoveRollbackBarTo_e", "swMoveRollbackBarToAfterFeature");
+                var name = (string)cad.Get(Feature, feature, "Name");
+                if ((bool)cad.Call("IFeatureManager", manager, "EditRollback", after, name))
+                    movedToEnd = (bool)cad.Call("IFeatureManager", manager, "EditRollback", end, "");
+            }
+
+            bool rebuilt = (bool)cad.Call(Model, model, "ForceRebuild3", false);
+            if (!rebuilt && ReferenceEquals(cad.Get(App, app, "ActiveDoc"), model))
+                rebuilt = (bool)cad.Call(Model, model, "EditRebuild3");
+            if (!movedToEnd || (bool)cad.Call(Feature, feature, "IsRolledBack"))
+                throw new InvalidOperationException("自动恢复特征树未完成，平板型式仍处于回滚状态。");
+            if (!rebuilt)
+                throw new InvalidOperationException("已恢复特征树，但 SOLIDWORKS 未能重建零件。");
+
+            cad.Log("已将只读副本的回滚条移至特征树末尾并重建。");
+        }
+
+        private IReadOnlyList<string> ReadRebuildFailures(object model)
+        {
+            var failures = new List<string>();
+            try
+            {
+                foreach (object feature in EnumerateFeatures(model))
+                {
+                    object[] warning = { false };
+                    int code = (int)cad.Call(Feature, feature, "GetErrorCode2", warning);
+                    if (code == 0 || (bool)warning[0])
+                        continue;
+
+                    var name = (string)cad.Get(Feature, feature, "Name");
+                    cad.Log("重建错误：{0} ({1}, {2})", name, cad.EnumName("swFeatureError_e", code), code);
+                    if (failures.Count < 3 && !string.IsNullOrWhiteSpace(name) && !failures.Contains(name))
+                        failures.Add(name);
+                }
+            }
+            catch (Exception exception)
+            {
+                cad.Log("读取特征重建错误失败：" + CadAnalysis.DescribeError(exception));
+            }
+
+            return failures;
         }
 
         private void RequireRebuilt(object extension, string state)
