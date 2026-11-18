@@ -1,0 +1,58 @@
+SWGrade 阶段 1 — Linux 云端验证记录
+日期：2026-11-18 UTC
+Linux 6.18.57 x86_64 GNU/Linux
+8.0.419
+  SWGrade.SolidWorks -> /workspace/SWGrade/src/SWGrade.SolidWorks/bin/x64/Release/net48/SWGrade.SolidWorks.dll
+  SWGrade.Probe -> /workspace/SWGrade/src/SWGrade.Probe/bin/x64/Release/net48/SWGrade.Probe.exe
+  SWGrade.Desktop -> /workspace/SWGrade/src/SWGrade.Desktop/bin/x64/Release/net48/SWGrade.Desktop.exe
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:05.32
+PASS m³ → cm³
+PASS 零值单位换算
+PASS 独立工作副本
+PASS 源文件 SHA-256
+PASS 副本字节一致
+PASS 清理工作副本
+PASS 源文件内容和最后写入时间保留
+PASS 源文件变动被识别
+PASS 拒绝装配体
+PASS 报告缺失文件
+PASS JSON 架构版本
+PASS JSON 体积保持 SI
+PASS 无材料保留空质量
+PASS JSON 特征类型摘要
+PASS JSON 中文文件名
+PASS UTF-8 JSON 导出
+PASS JSON 禁止覆盖已有文件
+PASS 覆盖失败时保留已有文件
+PASS JSON 导出拒绝零件扩展名
+云端纯逻辑检查通过。未执行 SOLIDWORKS COM。
+src/SWGrade.Probe/bin/x64/Release/net48/SWGrade.Probe.exe:        PE32+ executable for MS Windows 6.00 (console), x86-64 Mono/.Net assembly, 2 sections
+src/SWGrade.Desktop/bin/x64/Release/net48/SWGrade.Desktop.exe:    PE32+ executable for MS Windows 6.00 (GUI), x86-64 Mono/.Net assembly, 2 sections
+src/SWGrade.Desktop/bin/x64/Release/net48/SWGrade.SolidWorks.dll: PE32+ executable for MS Windows 6.00 (DLL), x86-64 Mono/.Net assembly, 2 sections
+PASS SWGrade.Probe.exe: x64 PE, expected runtime and resources
+PASS SWGrade.Desktop.exe: x64 PE, expected runtime and resources
+PASS SWGrade.SolidWorks.dll: x64 PE, expected runtime and resources
+以下命令由 Linux 的 .NET 8 CoreCLR 加载 Probe，仅覆盖 CLI 入口。
+SWGrade.Probe.exe [--expect 2025|2026]
+SWGrade.Probe.exe --expect 2025|2026 --model "C:\样本\零件.SLDPRT" [--config "配置名"] [--json "结果.json"]
+模型探测使用当前用户会话中唯一已启动的 SOLIDWORKS 实例。
+退出码：0
+[参数错误] 参数缺失、无效或重复。
+SWGrade.Probe.exe [--expect 2025|2026]
+SWGrade.Probe.exe --expect 2025|2026 --model "C:\样本\零件.SLDPRT" [--config "配置名"] [--json "结果.json"]
+模型探测使用当前用户会话中唯一已启动的 SOLIDWORKS 实例。
+退出码：2
+[参数错误] 参数缺失、无效或重复。
+SWGrade.Probe.exe [--expect 2025|2026]
+SWGrade.Probe.exe --expect 2025|2026 --model "C:\样本\零件.SLDPRT" [--config "配置名"] [--json "结果.json"]
+模型探测使用当前用户会话中唯一已启动的 SOLIDWORKS 实例。
+退出码：2
+SWGrade 阶段 0 探针 1.0.0.0
+[平台不可用] 当前系统为 Unix。SOLIDWORKS COM 需要 Windows x64。
+退出码：3
+Windows WPF 启动、实际交互、CAD COM、许可和样本读数尚未实测。

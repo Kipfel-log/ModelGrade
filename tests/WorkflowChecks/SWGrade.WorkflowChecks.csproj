@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/SWGrade.Desktop/RuleNumber.cs" Link="Desktop/RuleNumber.cs" />
+    <Compile Include="../../src/SWGrade.Desktop/RulesDraft.cs" Link="Desktop/RulesDraft.cs" />
+    <ProjectReference Include="../../src/SWGrade.Infrastructure/SWGrade.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

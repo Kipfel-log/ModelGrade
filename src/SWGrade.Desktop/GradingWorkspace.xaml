@@ -1,0 +1,198 @@
+<UserControl x:Class="SWGrade.Desktop.GradingWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:SWGrade.Desktop">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="WhenTrue"/>
+        <Style x:Key="Field" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,10,7"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="Grid" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource Canvas}"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="28,20,28,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <DockPanel LastChildFill="True" Margin="0,0,0,9">
+                <WrapPanel DockPanel.Dock="Right" Margin="10,0,0,0">
+                    <Button Content="新建作业" Command="{Binding NewDraftCommand}"/>
+                    <Button Content="沿用当前规则" Command="{Binding ReuseRulesCommand}"/>
+                    <Button Content="本地数据" Command="{Binding OpenFolderCommand}" Margin="0"/>
+                </WrapPanel>
+                <StackPanel>
+                    <TextBlock Text="{Binding WorkspaceHeading}" Style="{StaticResource PageTitle}"/>
+                    <TextBlock Text="{Binding WorkspaceDescription}" Style="{StaticResource Description}"/>
+                </StackPanel>
+            </DockPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Content="当前作业" Target="{Binding ElementName=Jobs}" VerticalAlignment="Center"/>
+                <ComboBox x:Name="Jobs" MinWidth="190" MaxWidth="330" Padding="6,4"
+                          ItemsSource="{Binding Jobs}" SelectedItem="{Binding Current}"
+                          DisplayMemberPath="Name" IsEnabled="{Binding CanEdit}"
+                          AutomationProperties.Name="当前作业"/>
+            </StackPanel>
+        </StackPanel>
+
+        <TabControl Grid.Row="1" SelectedIndex="{Binding WorkspaceTab}" Style="{StaticResource ContentTabs}">
+            <TabItem Header="批改与历史">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4*" MinWidth="210"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="6*" MinWidth="300"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.ColumnSpan="3" Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="标准件预检" Command="{Binding PrecheckCommand}" Margin="8,0,0,0"/>
+                        <TextBlock Text="{Binding StandardSummary}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    </DockPanel>
+                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,0,0,8">
+                        <Button Content="导入文件…" Command="{Binding ImportFilesCommand}"/>
+                        <Button Content="导入文件夹…" Command="{Binding ImportFolderCommand}"/>
+                        <Button Content="导入 CAD 零件…" Command="{Binding ImportOpenPartCommand}"/>
+                        <Button Content="开始 / 继续" Command="{Binding StartCommand}" Style="{StaticResource PrimaryButton}"/>
+                        <Button Content="暂停" Command="{Binding PauseCommand}"/>
+                        <Button Content="取消剩余" Command="{Binding CancelCommand}"/>
+                        <Button Content="重试所选" Command="{Binding RetryCommand}"/>
+                        <Button Content="导出班级 CSV…" Command="{Binding ExportCsvCommand}"/>
+                    </WrapPanel>
+
+                    <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="12">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="提交列表" Style="{StaticResource SectionTitle}"/>
+                            <ListBox x:Name="SubmissionList" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}"
+                                     BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="学生提交列表">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="3,5,3,6">
+                                            <TextBlock Text="{Binding File}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                                            <WrapPanel Margin="0,3,0,0">
+                                                <TextBlock Text="{Binding Number}" Foreground="{DynamicResource Muted}" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Student}" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Accent}"/>
+                                            </WrapPanel>
+                                            <TextBlock Text="{Binding Automatic}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            <TextBlock Text="{Binding Final, StringFormat='终评 {0}'}" Margin="0,3,0,0"/>
+                                            <TextBlock Text="{Binding Errors, StringFormat='错误 {0}'}" Foreground="{DynamicResource Muted}"/>
+                                            <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    <GridSplitter Grid.Row="2" Grid.Column="1" Width="8" HorizontalAlignment="Center"
+                                  VerticalAlignment="Stretch" Background="Transparent"/>
+
+                    <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Panel}" Padding="12">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding ResultSummary}" TextWrapping="Wrap"
+                                   FontWeight="SemiBold" Margin="0,4,0,6"/>
+                        <Button DockPanel.Dock="Top" HorizontalAlignment="Left" Content="为所选学生选择配置…"
+                                Command="{Binding SelectStudentConfigurationCommand}"
+                                Visibility="{Binding SelectedNeedsConfiguration, Converter={StaticResource WhenTrue}}"
+                                Margin="0,3,0,9"/>
+                        <TabControl SelectedIndex="{Binding DetailTab}" Padding="6" FontSize="14">
+                            <TabItem Header="逐项对照">
+                                <DataGrid Style="{StaticResource Grid}" ItemsSource="{Binding Comparison}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="检查项" Binding="{Binding Name}" Width="120"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="标准值" Binding="{Binding Standard}" Width="100"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="学生值" Binding="{Binding Student}" Width="100"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="绝对误差" Binding="{Binding Absolute}" Width="100"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="相对误差" Binding="{Binding Relative}" Width="90"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="有效容差" Binding="{Binding Tolerance}" Width="100"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="结论" Binding="{Binding Conclusion}" Width="75"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="得分 / 分值" Binding="{Binding Score}" Width="92"/>
+                                        <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="依据" Binding="{Binding Reason}" Width="*" MinWidth="144"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+                            <TabItem Header="证据和执行记录">
+                                <TextBox Text="{Binding ResultEvidence, Mode=OneWay}" IsReadOnly="True"
+                                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            </TabItem>
+                            <TabItem Header="标准件诊断">
+                                <TextBox Text="{Binding Precheck, Mode=OneWay}" IsReadOnly="True"
+                                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            </TabItem>
+                            <TabItem Header="学生信息与复核">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="5">
+                                        <WrapPanel Margin="0,0,0,8">
+                                            <Label Content="学号" Target="{Binding ElementName=StudentId}"/>
+                                            <TextBox x:Name="StudentId" Text="{Binding StudentId, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="130" Style="{StaticResource Field}"/>
+                                            <Label Content="姓名" Target="{Binding ElementName=StudentName}"/>
+                                            <TextBox x:Name="StudentName" Text="{Binding StudentName, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="150" Style="{StaticResource Field}"/>
+                                            <Button Content="保存学生信息" Command="{Binding SaveStudentCommand}"/>
+                                            <Button Content="导出单件 HTML…" Command="{Binding ExportHtmlCommand}"/>
+                                        </WrapPanel>
+                                        <WrapPanel>
+                                            <Label Content="最终成绩" Target="{Binding ElementName=FinalScore}"/>
+                                            <TextBox x:Name="FinalScore" Text="{Binding ReviewScore, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="80" Style="{StaticResource Field}"/>
+                                            <Label Content="复核原因" Target="{Binding ElementName=ReviewReason}"/>
+                                            <TextBox x:Name="ReviewReason" Text="{Binding ReviewReason, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="350" Style="{StaticResource Field}"/>
+                                            <Button Content="确认并保存终评" Command="{Binding SaveReviewCommand}"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+                    </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="作业规则">
+                <local:AssignmentEditor/>
+            </TabItem>
+        </TabControl>
+
+        <DockPanel Grid.Row="2" Margin="0,10,0,0" LastChildFill="True">
+            <Button DockPanel.Dock="Right" Content="重开本地作业" Command="{Binding ReopenCommand}" Margin="10,0,0,0"/>
+            <StackPanel DockPanel.Dock="Right" MinWidth="156" Margin="10,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding QueueSummary}" TextAlignment="Right"/>
+                <ProgressBar Value="{Binding SettledCount, Mode=OneWay}" Maximum="{Binding ProgressMaximum}" Height="4" Margin="0,4,0,0"/>
+            </StackPanel>
+            <ui:InfoBar Title="批改状态" Message="{Binding Status}" IsOpen="True" IsClosable="False" VerticalAlignment="Center">
+                <ui:InfoBar.Style>
+                    <Style TargetType="ui:InfoBar" BasedOn="{StaticResource {x:Type ui:InfoBar}}">
+                        <Setter Property="Severity" Value="Informational"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasStatusError}" Value="True">
+                                <Setter Property="Severity" Value="Error"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:InfoBar.Style>
+            </ui:InfoBar>
+        </DockPanel>
+    </Grid>
+</UserControl>

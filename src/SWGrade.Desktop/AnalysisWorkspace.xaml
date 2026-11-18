@@ -1,0 +1,247 @@
+<UserControl x:Class="SWGrade.Desktop.AnalysisWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SWGrade.Desktop"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <UserControl.Resources>
+        <DataTemplate x:Key="PartSelector">
+            <StackPanel>
+                <Border Background="{DynamicResource SurfaceAlt}" CornerRadius="8" Padding="12" Margin="0,0,0,12" MinHeight="75">
+                    <StackPanel>
+                        <TextBlock Text="{Binding FileName}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"
+                                   ToolTip="{Binding SourcePath}"/>
+                        <TextBlock Text="{Binding SourceDetail}" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Muted}"/>
+                    </StackPanel>
+                </Border>
+                <Button Content="从已打开零件选择…" Command="{Binding OpenCommand}" Margin="0,0,0,8" HorizontalAlignment="Stretch"/>
+                <Button Content="使用 CAD 当前零件" Command="{Binding ActiveCommand}" Margin="0,0,0,8" HorizontalAlignment="Stretch"/>
+                <Button Content="选择 .SLDPRT 文件…" Command="{Binding BrowseCommand}" Margin="0,0,0,10" HorizontalAlignment="Stretch"/>
+                <Label Content="配置名（留空使用活动配置）" Target="{Binding ElementName=Config}" Padding="0,0,0,4"/>
+                <TextBox x:Name="Config" Text="{Binding Configuration, UpdateSourceTrigger=PropertyChanged}" Padding="7,5"
+                         AutomationProperties.Name="配置名称"/>
+                <Button Content="清除选择" Command="{Binding ClearCommand}" HorizontalAlignment="Left" Margin="0,9,0,0"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="PropertyRow">
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="96"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
+                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"/>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="28,20,28,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowResult}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <StackPanel>
+                <TextBlock Text="模型分析" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="从 SOLIDWORKS 或磁盘选择零件，查看模型数据和对照结果。" Style="{StaticResource Description}"/>
+            </StackPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="1100" Margin="0,22,0,12" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="86"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource Panel}">
+                            <StackPanel>
+                                <TextBlock Text="参考件" Style="{StaticResource SectionTitle}"/>
+                                <ContentControl Content="{Binding Reference}" ContentTemplate="{StaticResource PartSelector}"/>
+                            </StackPanel>
+                        </Border>
+                        <Button Grid.Column="1" Content="⇄ 互换" Command="{Binding SwapCommand}" HorizontalAlignment="Center"
+                                Margin="0" AutomationProperties.Name="交换参考件与当前件"/>
+                        <Border Grid.Column="2" Style="{StaticResource Panel}">
+                            <StackPanel>
+                                <TextBlock Text="当前件" Style="{StaticResource SectionTitle}"/>
+                                <ContentControl Content="{Binding Current}" ContentTemplate="{StaticResource PartSelector}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0">
+                        <TextBlock Text="选择两件可对照，仅选当前件可单独分析。" Foreground="{DynamicResource Muted}"
+                                   Margin="0,0,0,10" TextAlignment="Center" TextWrapping="Wrap"/>
+                        <Button Content="{Binding AnalyzeLabel}" Command="{Binding AnalyzeCommand}"
+                                Style="{StaticResource PrimaryButton}" MinWidth="230" Margin="0"
+                                HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowResult}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <DockPanel Margin="0,0,0,14">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="复制 JSON" Command="{Binding CopyCommand}"/>
+                    <Button Content="导出 JSON…" Command="{Binding ExportCommand}" Margin="0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="← 重新选件" Command="{Binding BackCommand}" Margin="0,0,12,0"/>
+                    <TextBlock Text="{Binding ResultTitle}" Style="{StaticResource PageTitle}"/>
+                </StackPanel>
+            </DockPanel>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" MinWidth="240"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="7*"/>
+                </Grid.ColumnDefinitions>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="14"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Border Style="{StaticResource Panel}" MaxHeight="276">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="零件信息" Style="{StaticResource SectionTitle}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Overview}" ItemTemplate="{StaticResource PropertyRow}"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Row="2" Style="{StaticResource Panel}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="{Binding FindingHeading}" Style="{StaticResource SectionTitle}"/>
+                                <CheckBox Content="仅看异常与待复核" IsChecked="{Binding OnlyIssues}" Margin="0,0,0,10">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Scene.Reference}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
+                            </StackPanel>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <ItemsControl x:Name="FindingItems" ItemsSource="{Binding Findings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Expander Margin="0,0,0,8" Padding="0">
+                                                    <Expander.Header>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,9,0"/>
+                                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}"/>
+                                                        </StackPanel>
+                                                    </Expander.Header>
+                                                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,6,0,2"/>
+                                                </Expander>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="当前没有异常提示。" Foreground="{DynamicResource Muted}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasItems, ElementName=FindingItems}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+                <Border Grid.Column="2" Style="{StaticResource Panel}">
+                    <TabControl Padding="9">
+                        <TabItem Header="三维观察">
+                            <local:PartViewport Scene="{Binding Scene}"/>
+                        </TabItem>
+                        <TabItem Header="模型信息">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Details}" ItemTemplate="{StaticResource PropertyRow}"/>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="特征类型">
+                            <DataGrid ItemsSource="{Binding FeatureRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                      CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="零件" Binding="{Binding Role}" Width="98"/>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="特征类型" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="数量" Binding="{Binding Count}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                        <TabItem Header="诊断">
+                            <TextBox Text="{Binding Diagnostics, Mode=OneWay}" IsReadOnly="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
+                        </TabItem>
+                    </TabControl>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+            <ui:InfoBar IsOpen="{Binding HasStatus, Mode=OneWay}" IsClosable="False" Title="分析状态" Message="{Binding Status}">
+                <ui:InfoBar.Style>
+                    <Style TargetType="ui:InfoBar" BasedOn="{StaticResource {x:Type ui:InfoBar}}">
+                        <Setter Property="Severity" Value="Informational"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Severity" Value="Error"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:InfoBar.Style>
+            </ui:InfoBar>
+            <ProgressBar Height="3" Margin="0,5,0,0" IsIndeterminate="True">
+                <ProgressBar.Style>
+                    <Style TargetType="ProgressBar">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ProgressBar.Style>
+            </ProgressBar>
+        </StackPanel>
+    </Grid>
+</UserControl>

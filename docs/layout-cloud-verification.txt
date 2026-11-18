@@ -1,0 +1,108 @@
+SWGrade 0.3.0-preview.1 — 白板布局与真实 CAD 网格预览
+云端验证 2026-11-18
+Linux 6.18.57 x86_64 GNU/Linux
+  SWGrade.Domain -> /workspace/SWGrade/src/SWGrade.Domain/bin/x64/Release/netstandard2.0/SWGrade.Domain.dll
+  SWGrade.SolidWorks -> /workspace/SWGrade/src/SWGrade.SolidWorks/bin/x64/Release/net48/SWGrade.SolidWorks.dll
+  SWGrade.Probe -> /workspace/SWGrade/src/SWGrade.Probe/bin/x64/Release/net48/SWGrade.Probe.exe
+  SWGrade.Application -> /workspace/SWGrade/src/SWGrade.Application/bin/x64/Release/netstandard2.0/SWGrade.Application.dll
+  SWGrade.Infrastructure -> /workspace/SWGrade/src/SWGrade.Infrastructure/bin/x64/Release/netstandard2.0/SWGrade.Infrastructure.dll
+  SWGrade.Desktop -> /workspace/SWGrade/src/SWGrade.Desktop/bin/x64/Release/net48/SWGrade.Desktop.exe
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.64
+  SWGrade.Domain -> /workspace/SWGrade/src/SWGrade.Domain/bin/Release/netstandard2.0/SWGrade.Domain.dll
+  SWGrade.CloudChecks -> /workspace/SWGrade/tests/CloudChecks/bin/Release/net8.0/SWGrade.CloudChecks.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:05.66
+PASS m³ → cm³
+PASS 零值单位换算
+PASS 读取可共享的已打开源文件
+PASS 独立工作副本
+PASS 源文件 SHA-256
+PASS 副本字节一致
+PASS 清理工作副本
+PASS 源文件内容和最后写入时间保留
+PASS 源文件变动被识别
+PASS 拒绝装配体
+PASS 报告缺失文件
+PASS 新建未保存零件不可读取
+PASS 有磁盘版本的零件保留需保存提示
+PASS 指定配置优先，留空使用打开文档配置
+PASS 读取已打开零件需要原生 SLDPRT 磁盘版本
+PASS JSON 保留已打开零件来源和需保存状态
+PASS JSON 架构版本
+PASS JSON 体积保持 SI
+PASS 无材料保留空质量
+PASS JSON 特征类型摘要
+PASS JSON 中文文件名
+PASS 双件对照 JSON 保留测量证据和检查项
+PASS UTF-8 JSON 导出
+PASS JSON 禁止覆盖已有文件
+PASS 覆盖失败时保留已有文件
+PASS JSON 导出拒绝零件扩展名
+云端纯逻辑检查通过。未执行 SOLIDWORKS COM。
+  SWGrade.Domain -> /workspace/SWGrade/src/SWGrade.Domain/bin/Release/netstandard2.0/SWGrade.Domain.dll
+  SWGrade.Application -> /workspace/SWGrade/src/SWGrade.Application/bin/Release/netstandard2.0/SWGrade.Application.dll
+  SWGrade.Infrastructure -> /workspace/SWGrade/src/SWGrade.Infrastructure/bin/Release/netstandard2.0/SWGrade.Infrastructure.dll
+  SWGrade.WorkflowChecks -> /workspace/SWGrade/tests/WorkflowChecks/bin/Release/net8.0/SWGrade.WorkflowChecks.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:09.06
+MOCK TEST ONLY. This run contains no CAD reads, real part measurements, or live grades.
+PASS inclusive tolerance boundary
+PASS outside tolerance
+PASS zero reference absolute tolerance
+PASS missing measurement unverified
+PASS reject invalid weight total
+PASS reject nonfinite tolerance
+PASS pair shows measured out-of-tolerance values
+PASS ad-hoc comparison carries no grading points
+PASS comparison never infers geometric difference from measurements
+PASS comparison reports absent mass without fabricating values
+PASS swapped comparison uses new reference
+PASS ad-hoc mismatched configurations require a mapping
+PASS ad-hoc explicit different configurations are compared
+PASS unverified geometry and unconfigured feature points withheld
+PASS read-only status is compatible with grading
+PASS non-read-only load warning requires review
+PASS configuration mismatch blocks score
+PASS explicit configuration mapping
+PASS process mode requires explicit feature rules
+PASS suppressed feature does not earn points
+PASS unknown suppression state avoids deduction
+PASS verified active feature earns configured points
+PASS synthetic geometry band arithmetic
+PASS incomplete geometry result withheld
+PASS empty inspections withheld
+PASS 20 file imports with duplicate hash notice
+PASS suggested student ID from filename
+PASS pause at file boundary
+PASS one file failure isolated
+PASS reference read once per run with recorded snapshot
+PASS failed file retried with full history
+PASS manual reason required
+PASS cancel remaining persisted
+PASS running item retained when canceling remaining queue
+PASS rule snapshot round trip
+PASS interrupted task detected on restart
+PASS interrupted task recoverable
+PASS manual and automatic scores remain distinct after reopen
+PASS inspection evidence round trip
+PASS CSV Excel BOM
+PASS CSV formula protection and manual score
+PASS escaped HTML and same final score
+PASS export preserves existing files
+PASS changed reference rejected
+PASS Windows x64 SWGrade.Desktop.exe
+PASS Windows x64 e_sqlite3.dll
+WPF 实际显示、真实 SOLIDWORKS 读数和三维网格需 Windows 真机验收。未运行局部几何差异。

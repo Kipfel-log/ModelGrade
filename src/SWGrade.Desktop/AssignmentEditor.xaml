@@ -1,0 +1,176 @@
+<UserControl x:Class="SWGrade.Desktop.AssignmentEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="WhenTrue"/>
+        <Style x:Key="EditorCard" TargetType="Border" BasedOn="{StaticResource Panel}">
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+        <Style x:Key="HelpText" TargetType="TextBlock" BasedOn="{StaticResource Description}">
+            <Setter Property="Margin" Value="0,5,0,10"/>
+        </Style>
+        <DataTemplate x:Key="NumberSlider">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Minimum="0" Maximum="{Binding SliderMaximum}" Value="{Binding SliderValue, Mode=TwoWay}"
+                            SmallChange="{Binding SliderStep}" LargeChange="{Binding SliderStep}"
+                            VerticalAlignment="Center" Margin="0,0,14,0" AutomationProperties.Name="{Binding Label}"/>
+                    <TextBox Grid.Column="1" MinWidth="84" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="{Binding Label}" VerticalContentAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Unit}" Margin="7,0,0,0" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="Tolerance">
+            <StackPanel Margin="0,0,0,10">
+                <ContentControl Content="{Binding Relative}" ContentTemplate="{StaticResource NumberSlider}"/>
+                <TextBlock Text="{Binding Example}" Style="{StaticResource HelpText}" Margin="0,0,0,8"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="AbsoluteTolerance">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding Unit}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}"/>
+                </DockPanel>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel IsEnabled="{Binding CanEdit}" MaxWidth="980" Margin="0,0,6,16">
+            <Border Style="{StaticResource EditorCard}">
+                <StackPanel>
+                    <TextBlock Text="作业基本信息" Style="{StaticResource SectionTitle}"/>
+                    <Label Content="作业名称" Target="{Binding ElementName=AssignmentName}" Padding="0,0,0,5"/>
+                    <TextBox x:Name="AssignmentName" Text="{Binding Draft.Name, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock Text="名称会出现在作业列表和导出的报告中。" Style="{StaticResource HelpText}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource EditorCard}">
+                <StackPanel>
+                    <TextBlock Text="标准模型选择" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="{Binding Draft.StandardPath, TargetNullValue=尚未选择标准模型}" TextWrapping="Wrap"
+                               Margin="0,0,0,9"/>
+                    <WrapPanel Margin="0,0,0,12">
+                        <Button Content="选择零件文件…" Command="{Binding ChooseStandardCommand}"/>
+                        <Button Content="从 SOLIDWORKS 选择…" Command="{Binding ChooseOpenStandardCommand}"/>
+                        <Button Content="重新读取配置" Command="{Binding RefreshConfigurationsCommand}"/>
+                    </WrapPanel>
+                    <Label Content="标准模型用于批改的版本" Target="{Binding ElementName=ReferenceChoice}" Padding="0,0,0,5"/>
+                    <ComboBox x:Name="ReferenceChoice" AutomationProperties.AutomationId="StandardConfigurationChoice" ItemsSource="{Binding Draft.ConfigurationChoices}"
+                              DisplayMemberPath="Display" SelectedValuePath="Name"
+                              SelectedValue="{Binding Draft.StandardConfiguration, Mode=TwoWay}"
+                              ToolTip="同一个零件文件可以保存不同尺寸或形状的版本。请选要作为正确答案的版本。"/>
+                    <TextBlock Text="{Binding Draft.ConfigurationStatus}" Style="{StaticResource HelpText}"/>
+                    <TextBlock Text="{Binding Draft.StudentMatchingSummary}" Style="{StaticResource HelpText}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource EditorCard}">
+                <StackPanel>
+                    <TextBlock Text="评分方式与权重" Style="{StaticResource SectionTitle}"/>
+                    <Label Content="评分方式" Target="{Binding ElementName=GradingMode}" Padding="0,0,0,5"/>
+                    <ComboBox x:Name="GradingMode" ItemsSource="{Binding Modes}" SelectedItem="{Binding Draft.Mode}"
+                              ToolTip="结果优先侧重零件本身。需要考查建模步骤时，可选指定过程并在高级设置填写特征。"/>
+                    <TextBlock Text="若重点是零件做得对不对，选「结果优先」。需要检查指定命令时，选「指定过程」。"
+                               Style="{StaticResource HelpText}" Margin="0,7,0,16"/>
+                    <ContentControl Content="{Binding Draft.Geometry}" ContentTemplate="{StaticResource NumberSlider}"
+                                    ToolTip="几何分用于检查形状与位置。当前版本只能由教师复核这部分。"/>
+                    <ContentControl Content="{Binding Draft.Parameters}" ContentTemplate="{StaticResource NumberSlider}"
+                                    ToolTip="参数分用于比较体积、表面积及启用的质量、实体与材料检查。"/>
+                    <ContentControl Content="{Binding Draft.Features}" ContentTemplate="{StaticResource NumberSlider}"
+                                    ToolTip="特征分用于核对老师指定的建模特征是否出现。"/>
+                    <TextBlock Text="{Binding Draft.WeightTotal}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,7"/>
+                    <TextBlock Text="{Binding Draft.WeightNotice}" Style="{StaticResource HelpText}"
+                               Visibility="{Binding Draft.HasUnavailableWeights, Converter={StaticResource WhenTrue}}"/>
+                    <CheckBox IsChecked="{Binding Draft.ConfirmUnavailableWeights}"
+                              Visibility="{Binding Draft.HasUnavailableWeights, Converter={StaticResource WhenTrue}}" Margin="0,2,0,10">
+                        <TextBlock Text="我确认保留这些分值，批改后由教师复核" TextWrapping="Wrap"/>
+                    </CheckBox>
+                    <Button Content="{Binding Draft.RedistributeLabel}" Command="{Binding RedistributeWeightsCommand}"
+                            HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource EditorCard}">
+                <StackPanel>
+                    <TextBlock Text="批改规则" Style="{StaticResource SectionTitle}"/>
+                    <Label Content="容差档位" Target="{Binding ElementName=TolerancePreset}" Padding="0,0,0,5"/>
+                    <ComboBox x:Name="TolerancePreset" AutomationProperties.AutomationId="TolerancePreset" ItemsSource="{Binding Draft.Presets}" SelectedItem="{Binding Draft.Preset}"
+                              ToolTip="档位同时更新体积、表面积、质量的百分比。每项也可单独调节。"/>
+                    <TextBlock Text="严格 0.01%、标准 0.1%、宽松 0.5% 为待实测的建议初始值。请按题目和样件调整。滑块用于 0–5%，也可直接输入数值。"
+                               Style="{StaticResource HelpText}" Margin="0,7,0,16"/>
+                    <ContentControl Content="{Binding Draft.Volume}" ContentTemplate="{StaticResource Tolerance}"/>
+                    <ContentControl Content="{Binding Draft.Area}" ContentTemplate="{StaticResource Tolerance}"/>
+                    <ContentControl Content="{Binding Draft.Mass}" ContentTemplate="{StaticResource Tolerance}"/>
+                    <CheckBox IsChecked="{Binding Draft.RequireSingleSolidBody}" Margin="0,0,0,8"
+                              ToolTip="适合应做成一个整体的零件。多实体题目可取消勾选。">
+                        <TextBlock Text="要求模型只有一个实体" TextWrapping="Wrap"/>
+                    </CheckBox>
+                    <CheckBox IsChecked="{Binding Draft.CheckMass}" Margin="0,0,0,8"
+                              ToolTip="题目有质量要求时使用。无法可靠读取质量时，该项待复核。">
+                        <TextBlock Text="检查质量" TextWrapping="Wrap"/>
+                    </CheckBox>
+                    <CheckBox IsChecked="{Binding Draft.CheckMaterial}"
+                              ToolTip="学生需要为整个零件指定与标准件相同的材料时使用。">
+                        <TextBlock Text="检查材料" TextWrapping="Wrap"/>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource EditorCard}">
+                <Expander Header="高级设置" AutomationProperties.AutomationId="AdvancedAssignmentRules" IsExpanded="False">
+                    <StackPanel Margin="0,14,0,0">
+                        <TextBlock Text="学生模型配置匹配" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="通常使用与标准模型同名的版本。如果全班约定了另一个名字，可在这里输入。个别学生不匹配时，在结果区单独选择。"
+                                   Style="{StaticResource HelpText}"/>
+                        <Label Content="全班约定的学生配置名（可留空）" Target="{Binding ElementName=StudentConfig}" Padding="0,0,0,5"/>
+                        <TextBox x:Name="StudentConfig" Text="{Binding Draft.StudentConfiguration, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,18" ToolTip="这是学生文件中保存的版本名。留空使用标准模型的配置名称。"/>
+
+                        <TextBlock Text="绝对容差" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="批改时比较「实际误差」与「允许误差」。允许误差取两个数中较大的一个：标准值乘百分比、下方填写的绝对容差。等于上限也通过。"
+                                   Style="{StaticResource HelpText}"/>
+                        <ContentControl Content="{Binding Draft.Volume.Absolute}" ContentTemplate="{StaticResource AbsoluteTolerance}"/>
+                        <ContentControl Content="{Binding Draft.Area.Absolute}" ContentTemplate="{StaticResource AbsoluteTolerance}"/>
+                        <ContentControl Content="{Binding Draft.Mass.Absolute}" ContentTemplate="{StaticResource AbsoluteTolerance}"/>
+
+                        <TextBlock Text="几何与特征规则" Style="{StaticResource SectionTitle}" Margin="0,9,0,9"/>
+                        <TextBlock Text="几何规则可随作业保存。自动形状比较尚不可用，暂由教师复核。"
+                                   Style="{StaticResource HelpText}"/>
+                        <Label Content="几何评分策略" Target="{Binding ElementName=GeometryStrategy}" Padding="0,0,0,5"/>
+                        <ComboBox x:Name="GeometryStrategy" ItemsSource="{Binding GeometryPolicies}" SelectedItem="{Binding Draft.GeometryPolicy}"
+                                  Margin="0,0,0,9"/>
+                        <Label Content="几何差异率容差（%）" Target="{Binding ElementName=GeometryThreshold}" Padding="0,0,0,5"/>
+                        <TextBox x:Name="GeometryThreshold" Text="{Binding Draft.GeometryTolerancePercent, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,10" ToolTip="超过该差异率时几何不通过。等实际几何比较接入后用于自动计算。"/>
+                        <Label Content="分档规则（仅在选择分档时生效）" Target="{Binding ElementName=GeometryBands}" Padding="0,0,0,5"/>
+                        <TextBox x:Name="GeometryBands" Text="{Binding Draft.Bands, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" MinLines="2" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                        <TextBlock Text="每行填写「差异率上限 给分百分比」，按上限从小到大排列。例如 0.1 100。"
+                                   Style="{StaticResource HelpText}"/>
+                        <Label Content="需要出现的建模特征" Target="{Binding ElementName=FeatureList}" Padding="0,0,0,5"/>
+                        <TextBox x:Name="FeatureList" Text="{Binding Draft.FeatureTypes, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" MinLines="2" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                        <TextBlock Text="每行填一个特征类型，可从模型分析的「特征类型」页查看名称。只核对当前配置中该特征是否存在。"
+                                   Style="{StaticResource HelpText}"/>
+                        <Label Content="指定 SOLIDWORKS 版本" Target="{Binding ElementName=ExpectedCad}" Padding="0,2,0,5"/>
+                        <ComboBox x:Name="ExpectedCad" ItemsSource="{Binding CadYears}" SelectedItem="{Binding Draft.CadYear}"/>
+                    </StackPanel>
+                </Expander>
+            </Border>
+
+            <Button Content="保存新作业" Command="{Binding SaveAssignmentCommand}" Style="{StaticResource PrimaryButton}"
+                    HorizontalAlignment="Right" Margin="0"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

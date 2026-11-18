@@ -1,0 +1,62 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EFA3C140-7311-40BA-B5F6-4C0378723733}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.Probe", "src\SWGrade.Probe\SWGrade.Probe.csproj", "{19394575-DCEF-4715-B957-9CE2E6B77986}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.SolidWorks", "src\SWGrade.SolidWorks\SWGrade.SolidWorks.csproj", "{ED9C144C-839E-48E1-8AA2-21405524D4E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.Desktop", "src\SWGrade.Desktop\SWGrade.Desktop.csproj", "{D21C38D5-9660-4926-8ABC-FAD417F01729}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.Domain", "src\SWGrade.Domain\SWGrade.Domain.csproj", "{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.Application", "src\SWGrade.Application\SWGrade.Application.csproj", "{C6117BBA-AADE-4B32-9184-E448D45CFD6E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SWGrade.Infrastructure", "src\SWGrade.Infrastructure\SWGrade.Infrastructure.csproj", "{49B5C195-733A-4900-AF3D-2E7E2ACEB649}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{19394575-DCEF-4715-B957-9CE2E6B77986}.Debug|x64.ActiveCfg = Debug|x64
+		{19394575-DCEF-4715-B957-9CE2E6B77986}.Debug|x64.Build.0 = Debug|x64
+		{19394575-DCEF-4715-B957-9CE2E6B77986}.Release|x64.ActiveCfg = Release|x64
+		{19394575-DCEF-4715-B957-9CE2E6B77986}.Release|x64.Build.0 = Release|x64
+		{ED9C144C-839E-48E1-8AA2-21405524D4E4}.Debug|x64.ActiveCfg = Debug|x64
+		{ED9C144C-839E-48E1-8AA2-21405524D4E4}.Debug|x64.Build.0 = Debug|x64
+		{ED9C144C-839E-48E1-8AA2-21405524D4E4}.Release|x64.ActiveCfg = Release|x64
+		{ED9C144C-839E-48E1-8AA2-21405524D4E4}.Release|x64.Build.0 = Release|x64
+		{D21C38D5-9660-4926-8ABC-FAD417F01729}.Debug|x64.ActiveCfg = Debug|x64
+		{D21C38D5-9660-4926-8ABC-FAD417F01729}.Debug|x64.Build.0 = Debug|x64
+		{D21C38D5-9660-4926-8ABC-FAD417F01729}.Release|x64.ActiveCfg = Release|x64
+		{D21C38D5-9660-4926-8ABC-FAD417F01729}.Release|x64.Build.0 = Release|x64
+		{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D}.Debug|x64.ActiveCfg = Debug|x64
+		{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D}.Debug|x64.Build.0 = Debug|x64
+		{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D}.Release|x64.ActiveCfg = Release|x64
+		{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D}.Release|x64.Build.0 = Release|x64
+		{C6117BBA-AADE-4B32-9184-E448D45CFD6E}.Debug|x64.ActiveCfg = Debug|x64
+		{C6117BBA-AADE-4B32-9184-E448D45CFD6E}.Debug|x64.Build.0 = Debug|x64
+		{C6117BBA-AADE-4B32-9184-E448D45CFD6E}.Release|x64.ActiveCfg = Release|x64
+		{C6117BBA-AADE-4B32-9184-E448D45CFD6E}.Release|x64.Build.0 = Release|x64
+		{49B5C195-733A-4900-AF3D-2E7E2ACEB649}.Debug|x64.ActiveCfg = Debug|x64
+		{49B5C195-733A-4900-AF3D-2E7E2ACEB649}.Debug|x64.Build.0 = Debug|x64
+		{49B5C195-733A-4900-AF3D-2E7E2ACEB649}.Release|x64.ActiveCfg = Release|x64
+		{49B5C195-733A-4900-AF3D-2E7E2ACEB649}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{19394575-DCEF-4715-B957-9CE2E6B77986} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+		{ED9C144C-839E-48E1-8AA2-21405524D4E4} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+		{D21C38D5-9660-4926-8ABC-FAD417F01729} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+		{A9220C8B-9E23-416A-B6D5-E362DF5BEE3D} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+		{C6117BBA-AADE-4B32-9184-E448D45CFD6E} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+		{49B5C195-733A-4900-AF3D-2E7E2ACEB649} = {EFA3C140-7311-40BA-B5F6-4C0378723733}
+	EndGlobalSection
+EndGlobal

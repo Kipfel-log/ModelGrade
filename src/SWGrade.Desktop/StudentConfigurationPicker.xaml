@@ -1,0 +1,19 @@
+<Window x:Class="SWGrade.Desktop.StudentConfigurationPicker"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择学生模型配置" SizeToContent="Height" Width="482" MinWidth="350"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        Background="{DynamicResource Canvas}" Foreground="{DynamicResource Ink}"
+        FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="15">
+    <StackPanel Margin="26">
+        <TextBlock Text="选择用于批改的版本" Style="{StaticResource SectionTitle}"/>
+        <TextBlock Text="此学生模型没有找到作业指定的配置。请选择与作业要求对应的配置，该选择仅应用于这一份提交。"
+                   Style="{StaticResource Description}" Margin="0,0,0,14"/>
+        <ComboBox x:Name="Choices" DisplayMemberPath="Display" SelectedValuePath="Name"
+                  AutomationProperties.Name="学生模型配置" Margin="0,0,0,18"/>
+        <WrapPanel HorizontalAlignment="Right">
+            <Button Content="取消" IsCancel="True"/>
+            <Button Content="确认并重新加入队列" IsDefault="True" Click="Accept" Style="{StaticResource PrimaryButton}" Margin="0"/>
+        </WrapPanel>
+    </StackPanel>
+</Window>
