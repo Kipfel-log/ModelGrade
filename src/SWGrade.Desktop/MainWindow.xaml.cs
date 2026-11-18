@@ -248,6 +248,7 @@ namespace SWGrade.Desktop
                 if (Background is SolidColorBrush canvas)
                     source.CompositionTarget.BackgroundColor = canvas.Color;
             }
+            NavigationPane.SetResourceReference(BackgroundProperty, mica ? "NavigationMica" : "NavigationSurface");
             appearance.MaterialState = mica ? "原生 Mica 已启用" : "不透明 Fluent 背景";
         }
 

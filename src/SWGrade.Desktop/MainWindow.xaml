@@ -87,7 +87,7 @@
         </Border>
         <ContentControl x:Name="PageContent" Grid.Column="1" Focusable="False"
                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
-        <local:NotificationStack x:Name="Notifications" Grid.Column="1" Panel.ZIndex="5" Width="386"
-                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12,12,18,144"/>
+        <local:NotificationStack x:Name="Notifications" Grid.Column="1" Panel.ZIndex="5" MinWidth="255" MaxWidth="386"
+                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12,12,18,18"/>
     </Grid>
 </Window>

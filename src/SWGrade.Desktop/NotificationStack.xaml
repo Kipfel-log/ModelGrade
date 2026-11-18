@@ -3,9 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:local="clr-namespace:SWGrade.Desktop">
-    <Grid>
-        <Grid.Style>
-            <Style TargetType="Grid">
+    <Border BorderThickness="1" BorderBrush="{DynamicResource Line}" Background="{DynamicResource Surface}"
+            CornerRadius="8">
+        <Border.Style>
+            <Style TargetType="Border">
                 <Setter Property="Visibility" Value="Collapsed"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding HasItems, ElementName=Cards}" Value="True">
@@ -13,57 +14,58 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
-        </Grid.Style>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        <Button HorizontalAlignment="Right" Content="清除全部通知" Click="ClearAll"
-                AutomationProperties.AutomationId="ClearNotifications" Margin="0,0,3,6"/>
-        <ScrollViewer x:Name="NoticeScroll" Grid.Row="1" MaxHeight="290" HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto" ScrollChanged="KeepLatestVisible">
-            <ItemsControl x:Name="Cards" ItemsSource="{Binding Items}" AutomationProperties.Name="通知">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border ClipToBounds="True" Loaded="AnimateArrival">
-                            <Border VerticalAlignment="Top" Margin="0,0,3,7" Style="{StaticResource Panel}" Padding="12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon FontSize="20" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,10,0">
-                                        <ui:SymbolIcon.Style>
-                                            <Style TargetType="ui:SymbolIcon">
-                                                <Setter Property="Symbol" Value="Info24"/>
-                                                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:NoticeKind.Warning}">
-                                                        <Setter Property="Symbol" Value="Warning24"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:NoticeKind.Error}">
-                                                        <Setter Property="Symbol" Value="ErrorCircle24"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ui:SymbolIcon.Style>
-                                    </ui:SymbolIcon>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" Margin="0,4,0,3"/>
-                                        <TextBlock Text="{Binding DisplayTime}" FontSize="13" Foreground="{DynamicResource Muted}"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="2" Content="×" Click="Dismiss"
-                                            VerticalAlignment="Top" MinHeight="28" MinWidth="30" Padding="4,0" Margin="8,0,0,0"
-                                            AutomationProperties.Name="{Binding DismissLabel}"
-                                            AutomationProperties.AutomationId="DismissNotification" ToolTip="关闭这条通知"/>
-                                </Grid>
-                            </Border>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-    </Grid>
+        </Border.Style>
+        <Expander x:Name="Tray" AutomationProperties.AutomationId="NotificationTray">
+            <Expander.Header>
+                <TextBlock Text="{Binding Items.Count, StringFormat='通知（{0}）'}" FontWeight="SemiBold"/>
+            </Expander.Header>
+            <DockPanel Margin="8">
+                <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="清除全部" Click="ClearAll"
+                        AutomationProperties.AutomationId="ClearNotifications" MinHeight="30" Padding="9,3" Margin="0,0,0,6"/>
+                <ScrollViewer x:Name="NoticeScroll" MaxHeight="230" HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto" ScrollChanged="KeepLatestVisible">
+                    <ItemsControl x:Name="Cards" ItemsSource="{Binding Items}" AutomationProperties.Name="通知">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Loaded="AnimateArrival" Margin="0,0,3,5" Style="{StaticResource Panel}" Padding="10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ui:SymbolIcon FontSize="20" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,10,0">
+                                            <ui:SymbolIcon.Style>
+                                                <Style TargetType="ui:SymbolIcon">
+                                                    <Setter Property="Symbol" Value="Info24"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:NoticeKind.Warning}">
+                                                            <Setter Property="Symbol" Value="Warning24"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:NoticeKind.Error}">
+                                                            <Setter Property="Symbol" Value="ErrorCircle24"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:SymbolIcon.Style>
+                                        </ui:SymbolIcon>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" Margin="0,4,0,3"/>
+                                            <TextBlock Text="{Binding DisplayTime}" FontSize="13" Foreground="{DynamicResource Muted}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="×" Click="Dismiss"
+                                                VerticalAlignment="Top" MinHeight="28" MinWidth="30" Padding="4,0" Margin="8,0,0,0"
+                                                AutomationProperties.Name="{Binding DismissLabel}"
+                                                AutomationProperties.AutomationId="DismissNotification" ToolTip="关闭这条通知"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Expander>
+    </Border>
 </UserControl>

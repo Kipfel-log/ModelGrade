@@ -140,8 +140,13 @@ namespace SWGrade.SolidWorks
                             result.SheetMetal.Issue = "当前展开检查支持单实体钣金。这个配置需要人工复核。";
                         else
                         {
-                            SetFlatState(model, flat[0].Feature, configOption, false, configuration);
-                            result.SheetMetal.FoldedVerified = true;
+                            if (!(bool)cad.Call(Feature, flat[0].Feature, "IsRolledBack"))
+                            {
+                                SetFlatState(model, flat[0].Feature, configOption, false, configuration);
+                                result.SheetMetal.FoldedVerified = true;
+                            }
+                            else
+                                cad.Log("平板型式处于回滚状态，折弯读数使用保存状态。");
                             flatPattern = flat[0].Feature;
                         }
                     }
@@ -170,10 +175,13 @@ namespace SWGrade.SolidWorks
 
             try
             {
+                RollForwardToFlatPattern(model, flatPattern);
                 SetFlatState(model, flatPattern, configOption, true, configuration);
-                if ((int)cad.Get(Extension, extension, "NeedsRebuild2") !=
-                    cad.Constant("swModelRebuildStatus_e", "swModelRebuildStatus_FullyRebuilt"))
-                    throw new InvalidOperationException("展开态仍有待重建内容。");
+                RequireRebuilt(extension, "展开态");
+                object[] warning = { false };
+                int featureError = (int)cad.Call(Feature, flatPattern, "GetErrorCode2", warning);
+                if (featureError != 0)
+                    throw new InvalidOperationException("平板型式报告特征错误：" + cad.EnumName("swFeatureError_e", featureError));
                 var bodies = GetBodies(model, "swSolidBody");
                 if (bodies?.Length != 1)
                     throw new InvalidOperationException("展开后未取得一个有效实体。");
@@ -192,8 +200,32 @@ namespace SWGrade.SolidWorks
             }
         }
 
+        private void RollForwardToFlatPattern(object model, object feature)
+        {
+            if (!(bool)cad.Call(Feature, feature, "IsRolledBack"))
+                return;
+
+            // A rolled-back feature may change suppression without producing any geometry.
+            var manager = cad.Get(Model, model, "FeatureManager");
+            int end = cad.Constant("swMoveRollbackBarTo_e", "swMoveRollbackBarToEnd");
+            if (!(bool)cad.Call("IFeatureManager", manager, "EditRollback", end, "") ||
+                (bool)cad.Call(Feature, feature, "IsRolledBack") ||
+                !(bool)cad.Call(Model, model, "ForceRebuild3", false))
+                throw new InvalidOperationException("平板型式仍处于回滚状态或无法重建。");
+            cad.Log("已将只读副本的回滚条移至特征树末尾。");
+        }
+
+        private void RequireRebuilt(object extension, string state)
+        {
+            int rebuild = (int)cad.Get(Extension, extension, "NeedsRebuild2");
+            if (rebuild != cad.Constant("swModelRebuildStatus_e", "swModelRebuildStatus_FullyRebuilt"))
+                throw new InvalidOperationException(state + "仍有待重建内容：" +
+                    cad.EnumName("swModelRebuildStatus_e", rebuild));
+        }
+
         private void SetFlatState(object model, object feature, int configurationOption, bool flat, string configuration)
         {
+            ReadConfiguration(model, configuration);
             bool desiredSuppression = !flat;
             bool? suppressed = ReadSuppression(feature, configurationOption);
             if (!suppressed.HasValue)
@@ -203,7 +235,6 @@ namespace SWGrade.SolidWorks
 
             // This model has been verified as the uniquely named read-only working copy.
             // https://help.solidworks.com/2023/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IFeature~SetSuppression2.html
-            ReadConfiguration(model, configuration);
             int action = cad.Constant("swFeatureSuppressionAction_e", flat ? "swUnSuppressFeature" : "swSuppressFeature");
             if (!(bool)cad.Call(Feature, feature, "SetSuppression2", action, configurationOption, null) ||
                 !(bool)cad.Call(Model, model, "ForceRebuild3", false) ||

@@ -46,6 +46,9 @@ namespace SWGrade.Domain
             var check = new GradeCheck { Name = name, Status = CheckStatus.Unverified };
             if (blocker != null)
                 check.Reason = blocker;
+            else if (referenceFlat?.HasFlatMeasurements == true && currentFlat?.HasFlatMeasurements == true &&
+                (!referenceFlat.FoldedVerified || !currentFlat.FoldedVerified))
+                check.Reason = "两件的展开度量已取得，可检查展开图。至少一件的保存态未核实为完整折弯态，评分仍需复核。";
             else if (referenceFlat?.FoldedVerified != true || currentFlat?.FoldedVerified != true ||
                 !referenceFlat.HasFlatMeasurements || !currentFlat.HasFlatMeasurements)
                 check.Reason = "至少一件没有取得已核实的折弯态和展开态。请检查平板型式、配置和钣金实体。";

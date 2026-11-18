@@ -20,7 +20,7 @@ namespace SWGrade.Desktop
             Unloaded += (_, __) => expiry.Stop();
             expiry.Tick += (_, __) =>
             {
-                if (!IsMouseOver && !IsKeyboardFocusWithin)
+                if (!Tray.IsExpanded || (!IsMouseOver && !IsKeyboardFocusWithin))
                     center?.RemoveExpired();
             };
         }
@@ -38,6 +38,7 @@ namespace SWGrade.Desktop
                 return;
 
             followLatest = true;
+            Tray.IsExpanded = true;
             NoticeScroll.ScrollToEnd();
         }
 
@@ -57,15 +58,10 @@ namespace SWGrade.Desktop
         private void AnimateArrival(object sender, RoutedEventArgs args)
         {
             var card = (FrameworkElement)sender;
-            if (!SystemParameters.ClientAreaAnimation || card.ActualHeight <= 0)
+            if (!SystemParameters.ClientAreaAnimation)
                 return;
 
             var duration = TimeSpan.FromMilliseconds(190);
-            card.BeginAnimation(HeightProperty, new DoubleAnimation(0, card.ActualHeight, duration)
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
-                FillBehavior = FillBehavior.Stop
-            });
             card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { FillBehavior = FillBehavior.Stop });
         }
 

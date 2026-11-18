@@ -113,25 +113,28 @@ namespace SWGrade.Desktop
                 return;
             }
 
-            ApplicationAccentColorManager.Apply(Color.FromRgb(42, 116, 103), theme, false, false);
-            Set("Canvas", "#F2F5F6", "#161E23");
-            Set("NavigationSurface", "#E9EFF1", "#1B2429");
-            Set("Surface", "#FCFDFD", "#232E34");
-            Set("SurfaceAlt", "#F1F5F6", "#2B363D");
-            Set("ViewportSurface", "#E6EDF0", "#182328");
-            Set("Ink", "#182C32", "#EDF3F4");
-            Set("Muted", "#465C63", "#BECBD0");
-            Set("Line", "#CCDADD", "#495B63");
-            Set("Accent", "#176358", "#9BE1D2");
-            Set("AccentSoft", "#DCEDE8", "#24443F");
-            Set("HoverSurface", "#E7EFF1", "#314149");
-            Set("PressedSurface", "#D8E7E9", "#3A4E56");
-            Set("DisabledSurface", "#E7EBED", "#253137");
-            Set("DisabledInk", "#596B71", "#9AAEB5");
-            Set("BrandFill", "#14645A", "#7ECABB");
-            Set("BrandHover", "#0F564D", "#95DBCE");
-            Set("BrandPressed", "#104D45", "#68B4A6");
-            Set("BrandInk", "#FFFFFF", "#092C26");
+            ApplicationAccentColorManager.Apply(Color.FromRgb(29, 91, 182), theme, false, false);
+            Set("Canvas", "#F2F5F9", "#161D2A");
+            Set("NavigationSurface", "#E8EFF9", "#1B2638");
+            Set("NavigationMica", "#54DDEAFF", "#66162641");
+            Set("Surface", "#FCFDFF", "#232E41");
+            Set("SurfaceAlt", "#F0F4FA", "#2B3850");
+            Set("ViewportSurface", "#E6EDF7", "#182437");
+            Set("Ink", "#192C46", "#EDF3FC");
+            Set("Muted", "#465C76", "#BECCE0");
+            Set("Line", "#CCD8E8", "#495B75");
+            Set("Accent", "#1D53A0", "#A5CBFF");
+            Set("AccentSoft", "#DBE9FD", "#273F65");
+            Set("HoverSurface", "#E5EEF9", "#31445F");
+            Set("PressedSurface", "#D5E4F7", "#3B5272");
+            Set("DisabledSurface", "#E7EDF6", "#293549");
+            Set("DisabledInk", "#53647C", "#A5B6CD");
+            Set("BrandFill", "#1955AB", "#2965B6");
+            Set("BrandHover", "#13488F", "#3070C7");
+            Set("BrandPressed", "#103A76", "#2258A5");
+            Set("BrandInk", "#FFFFFF", "#FFFFFF");
+            Set("MatchInk", "#176442", "#91E4B5");
+            Set("DifferenceInk", "#A43B25", "#FFB4A1");
         }
 
         private void Save()
@@ -162,7 +165,7 @@ namespace SWGrade.Desktop
         {
             foreach (string key in new[] { "Canvas", "NavigationSurface", "Surface", "SurfaceAlt", "ViewportSurface", "HoverSurface", "PressedSurface", "AccentSoft", "DisabledSurface" })
                 SetBrush(key, SystemColors.WindowColor);
-            foreach (string key in new[] { "Ink", "Muted", "Line", "Accent" })
+            foreach (string key in new[] { "Ink", "Muted", "Line", "Accent", "MatchInk", "DifferenceInk" })
                 SetBrush(key, SystemColors.WindowTextColor);
             foreach (string key in new[] { "BrandFill", "BrandHover", "BrandPressed" })
                 SetBrush(key, SystemColors.HighlightColor);

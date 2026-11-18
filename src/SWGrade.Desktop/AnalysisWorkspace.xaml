@@ -23,28 +23,48 @@
             </StackPanel>
         </DataTemplate>
         <DataTemplate x:Key="PropertyRow">
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="96"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
-                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"/>
-            </Grid>
-        </DataTemplate>
-        <DataTemplate x:Key="ConfigurationSummary">
-            <Expander IsExpanded="{Binding IsPrimary, Mode=OneTime}" Margin="0,0,0,8">
-                <Expander.Header>
-                    <StackPanel>
-                        <TextBlock Text="{Binding Role}" FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding Configuration}" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Expander.Header>
-                <StackPanel Margin="0,9,0,0">
-                    <TextBlock Text="{Binding FileName}" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                    <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource PropertyRow}"/>
+            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,7">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,3">
+                        <TextBlock DockPanel.Dock="Right" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="待核对"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Matches}" Value="True">
+                                            <Setter Property="Text" Value="一致"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource MatchInk}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Matches}" Value="False">
+                                            <Setter Property="Text" Value="不一致"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource DifferenceInk}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Reference}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" FontSize="13"/>
+                    </DockPanel>
+                    <UniformGrid Rows="1">
+                        <TextBlock Text="{Binding Current}" TextWrapping="Wrap" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding Reference}" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Reference}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </UniformGrid>
                 </StackPanel>
-            </Expander>
+            </Border>
         </DataTemplate>
         <DataTemplate x:Key="FeatureDisplay">
             <Grid Margin="0,4">
@@ -161,18 +181,26 @@
                         <Border Style="{StaticResource Panel}" Padding="14" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="零件信息" Style="{StaticResource SectionTitle}"/>
-                                <ContentControl Content="{Binding CurrentSummary}" ContentTemplate="{StaticResource ConfigurationSummary}"/>
-                                <ContentControl Content="{Binding ReferenceSummary}" ContentTemplate="{StaticResource ConfigurationSummary}">
-                                    <ContentControl.Style>
-                                        <Style TargetType="ContentControl">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ContentControl.Style>
-                                </ContentControl>
+                                <UniformGrid Rows="1" Margin="0,0,0,9">
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="当前件" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Details.CurrentName}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Details.ReferenceName}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="参考件" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Details.ReferenceName}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                                <ItemsControl ItemsSource="{Binding Details.Fields}" ItemTemplate="{StaticResource PropertyRow}"/>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource Panel}" Padding="14">
@@ -212,7 +240,12 @@
                             <local:PartViewport Scene="{Binding Scene}"/>
                         </TabItem>
                         <TabItem Header="展开图" Visibility="{Binding ShowSheetMetal, Converter={StaticResource VisibleWhenTrue}}">
-                            <local:PartViewport IsFlatPattern="True" Scene="{Binding Scene}"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="重新展开检查"
+                                        AutomationProperties.AutomationId="CheckFlatPattern" Command="{Binding CheckFlatCommand}"
+                                        Margin="0,0,0,7"/>
+                                <local:PartViewport IsFlatPattern="True" Scene="{Binding Scene}"/>
+                            </DockPanel>
                         </TabItem>
                         <TabItem Header="参数对照">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

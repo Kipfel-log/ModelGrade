@@ -43,7 +43,9 @@ namespace SWGrade.Desktop
             Reference = new PartInput(owner, this);
             Current = new PartInput(owner, this);
             SwapCommand = new RelayCommand(Swap, () => CanEdit && (Reference.HasPart || Current.HasPart));
-            AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanEdit && Current.HasPart);
+            AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal), () => CanEdit && Current.HasPart);
+            CheckFlatCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetalMode.RequireFlatPattern, openFlat: true),
+                () => CanEdit && ShowResult && ShowSheetMetal);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
             CopyCommand = new RelayCommand(Copy, () => CanEdit && Scene != null);
             ExportCommand = new RelayCommand(Export, () => CanEdit && Scene != null);
@@ -55,6 +57,7 @@ namespace SWGrade.Desktop
         public PartInput Current { get; }
         public ICommand SwapCommand { get; }
         public ICommand AnalyzeCommand { get; }
+        public ICommand CheckFlatCommand { get; }
         public ICommand BackCommand { get; }
         public ICommand CopyCommand { get; }
         public ICommand ExportCommand { get; }
@@ -86,8 +89,7 @@ namespace SWGrade.Desktop
                 Notify(nameof(ResultTitle));
                 Notify(nameof(ShowSheetMetal));
                 Notify(nameof(FoldedTabTitle));
-                Notify(nameof(CurrentSummary));
-                Notify(nameof(ReferenceSummary));
+                Notify(nameof(Details));
                 Notify(nameof(ParameterRows));
                 Notify(nameof(KeyFeatures));
                 Notify(nameof(AllFeatures));
@@ -165,8 +167,8 @@ namespace SWGrade.Desktop
             }
         }
 
-        public PartSummary CurrentSummary => Scene?.Current == null ? null : new PartSummary("当前配置", Scene.Current.Inspection);
-        public PartSummary ReferenceSummary => Scene?.Reference == null ? null : new PartSummary("参考配置", Scene.Reference.Inspection);
+        public PartDetails Details => Scene == null ? null :
+            new PartDetails(Scene.Current.Inspection, Scene.Reference?.Inspection, Scene.HasSheetMetal);
 
         public IEnumerable<ComparisonRow> ParameterRows => report?.Checks.Where(check =>
             check.Name != "模型与配置" && check.Name != "几何差异")
@@ -287,27 +289,31 @@ namespace SWGrade.Desktop
             Current.Set(path, openPart, config);
         }
 
-        private async Task AnalyzeAsync()
+        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false)
         {
             IsBusy = true;
             Diagnostics = "";
-            Activity = "正在读取只读副本…";
-            ShowResult = false;
-            ResultTab = 0;
-            report = null;
-            Scene = null;
+            Activity = openFlat ? "正在展开只读副本…" : "正在读取只读副本…";
+            if (!openFlat)
+            {
+                ShowResult = false;
+                ResultTab = 0;
+                report = null;
+                Scene = null;
+            }
             try
             {
                 string version = expectedYear();
                 IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
-                SheetMetalMode mode = SheetMetal;
                 var reference = Reference.HasPart ? await Reference.ReadAsync(version, progress.Report, mode) : null;
                 var current = await Current.ReadAsync(version, progress.Report, mode);
-                if (reference != null)
-                    report = ModelComparison.Evaluate(reference.Inspection, current.Inspection,
+                report = reference == null ? null :
+                    ModelComparison.Evaluate(reference.Inspection, current.Inspection,
                         Reference.RequestedConfiguration, Current.RequestedConfiguration, mode);
 
                 Scene = new AnalysisScene(reference, current, mode);
+                if (openFlat)
+                    ResultTab = 1;
                 ShowResult = true;
             }
             catch (Exception exception)
@@ -376,49 +382,93 @@ namespace SWGrade.Desktop
 
     internal sealed class AnalysisRow
     {
-        internal AnalysisRow(string label, string value) { Label = label; Value = value; }
-        public string Label { get; }
-        public string Value { get; }
-    }
-
-    internal sealed class PartSummary
-    {
-        internal PartSummary(string role, ModelInspectionResult model)
+        internal AnalysisRow(string label, string current, string reference, bool? matches)
         {
-            Role = role;
-            IsPrimary = role == "当前配置";
-            Configuration = model.Configuration;
-            FileName = Path.GetFileName(model.SourcePath);
-            var fields = new List<AnalysisRow>
-            {
-                new AnalysisRow("体积", Unit(model.VolumeM3, ToleranceUnits.CubicCentimetresPerCubicMetre, "cm³")),
-                new AnalysisRow("实体表面积", Unit(model.SurfaceAreaM2, ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²")),
-                new AnalysisRow("实体面数", model.SolidFaceCount?.ToString() ?? "未取得"),
-                new AnalysisRow("曲面体面数", model.SurfaceFaceCount?.ToString() ?? "未取得"),
-                new AnalysisRow("实体 / 曲面体", $"{model.SolidBodyCount} / {model.SurfaceBodyCount}"),
-                new AnalysisRow("质量", Unit(model.MassKg, ToleranceUnits.GramsPerKilogram, "g")),
-                new AnalysisRow("材料", model.MaterialName ?? "未取得"),
-                new AnalysisRow("重建状态", model.RebuildStatusCode == 0 ? "已完成" : "需确认")
-            };
-            var sheet = model.SheetMetal;
-            if (sheet?.HasFlatMeasurements == true)
-            {
-                fields.Add(new AnalysisRow("钣金展开", "已读取"));
-                fields.Add(new AnalysisRow("展开态表面积", Unit(sheet.FlatSurfaceAreaM2, ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²")));
-            }
-            else if (sheet?.Issue != null)
-                fields.Add(new AnalysisRow("钣金展开", sheet.Issue));
-            Fields = fields;
+            Label = label;
+            Current = current;
+            Reference = reference;
+            Matches = matches;
         }
 
-        public string Role { get; }
-        public bool IsPrimary { get; }
-        public string Configuration { get; }
-        public string FileName { get; }
+        public string Label { get; }
+        public string Current { get; }
+        public string Reference { get; }
+        public bool? Matches { get; }
+    }
+
+    internal sealed class PartDetails
+    {
+        private const string Unavailable = "未取得";
+
+        internal PartDetails(ModelInspectionResult current, ModelInspectionResult reference, bool showSheetMetal)
+        {
+            CurrentName = Path.GetFileName(current.SourcePath);
+            ReferenceName = Path.GetFileName(reference?.SourcePath);
+            var fields = new List<AnalysisRow>
+            {
+                Row("配置", current.Configuration, reference?.Configuration,
+                    TextMatches(current.Configuration, reference?.Configuration, StringComparison.Ordinal)),
+                Measure("体积", current.VolumeM3, reference?.VolumeM3, ToleranceUnits.CubicCentimetresPerCubicMetre, "cm³"),
+                Measure("实体表面积", current.SurfaceAreaM2, reference?.SurfaceAreaM2, ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²"),
+                Count("实体面数", current.SolidFaceCount, reference?.SolidFaceCount),
+                Count("曲面体面数", current.SurfaceFaceCount, reference?.SurfaceFaceCount),
+                Row("实体 / 曲面体", BodyCounts(current), BodyCounts(reference), reference == null ? (bool?)null :
+                    current.SolidBodyCount == reference.SolidBodyCount && current.SurfaceBodyCount == reference.SurfaceBodyCount),
+                Measure("质量", current.MassKg, reference?.MassKg, ToleranceUnits.GramsPerKilogram, "g"),
+                Row("材料", current.MaterialName, reference?.MaterialName,
+                    TextMatches(current.MaterialName, reference?.MaterialName, StringComparison.OrdinalIgnoreCase)),
+                Row("重建状态", Rebuild(current), Rebuild(reference), reference?.RebuildState == null || current.RebuildState == null
+                    ? (bool?)null : current.RebuildStatusCode == reference.RebuildStatusCode)
+            };
+            if (showSheetMetal)
+            {
+                var currentFlat = current.SheetMetal;
+                var referenceFlat = reference?.SheetMetal;
+                fields.Add(Row("展开读取", FlatStatus(currentFlat), FlatStatus(referenceFlat),
+                    currentFlat?.HasFlatMeasurements == true && referenceFlat?.HasFlatMeasurements == true ? true : (bool?)null));
+                if (currentFlat?.HasFlatMeasurements == true || referenceFlat?.HasFlatMeasurements == true)
+                    fields.Add(Measure("展开态表面积", currentFlat?.FlatSurfaceAreaM2, referenceFlat?.FlatSurfaceAreaM2,
+                        ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²"));
+            }
+            Fields = fields;
+
+            AnalysisRow Row(string label, string currentValue, string referenceValue, bool? matches) =>
+                new AnalysisRow(label, currentValue ?? Unavailable, reference == null ? null : referenceValue ?? Unavailable, matches);
+
+            AnalysisRow Count(string label, int? currentCount, int? referenceCount) =>
+                Row(label, currentCount?.ToString(), referenceCount?.ToString(),
+                    currentCount.HasValue && referenceCount.HasValue ? currentCount == referenceCount : (bool?)null);
+
+            AnalysisRow Measure(string label, double? currentValue, double? referenceValue, double conversion, string unit)
+            {
+                // Ignore numerical noise from rebuilding the same CAD geometry.
+                bool? matches = currentValue.HasValue && referenceValue.HasValue
+                    ? Math.Abs(currentValue.Value - referenceValue.Value) <=
+                        1e-9 * Math.Max(Math.Abs(currentValue.Value), Math.Abs(referenceValue.Value))
+                    : (bool?)null;
+                return Row(label, Unit(currentValue, conversion, unit), Unit(referenceValue, conversion, unit), matches);
+            }
+        }
+
+        public string CurrentName { get; }
+        public string ReferenceName { get; }
         public IReadOnlyList<AnalysisRow> Fields { get; }
 
-        private static string Unit(double? value, double conversion, string unit) =>
-            value.HasValue ? ReportExporter.Measurement(ToleranceUnits.ToDisplay(value.Value, conversion), unit) : "未取得";
+        private static bool? TextMatches(string current, string reference, StringComparison comparison) =>
+            string.IsNullOrWhiteSpace(current) || string.IsNullOrWhiteSpace(reference)
+                ? (bool?)null : string.Equals(current, reference, comparison);
+
+        private static string BodyCounts(ModelInspectionResult model) =>
+            model == null ? null : $"{model.SolidBodyCount} / {model.SurfaceBodyCount}";
+
+        private static string Rebuild(ModelInspectionResult model) =>
+            model?.RebuildState == null ? null : model.RebuildStatusCode == 0 ? "已完成" : "需确认";
+
+        private static string FlatStatus(SheetMetalInspection sheet) => sheet?.HasFlatMeasurements == true
+            ? "已读取" : sheet?.Issue == null ? null : "待核对";
+
+        private static string Unit(double? value, double conversion, string unit) => value.HasValue
+            ? ReportExporter.Measurement(ToleranceUnits.ToDisplay(value.Value, conversion), unit) : null;
     }
 
     internal sealed class FeatureRow
