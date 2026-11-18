@@ -16,6 +16,7 @@ namespace SWGrade.Desktop
     {
         private const string Auto = "自动识别";
         private readonly Window owner;
+        private readonly NotificationCenter notices;
         private string version = Auto;
         private string state = "等待检测";
         private bool isBusy;
@@ -23,9 +24,10 @@ namespace SWGrade.Desktop
         private CadDetection detection;
         private string checkError;
 
-        internal ConnectionViewModel(Window owner)
+        internal ConnectionViewModel(Window owner, NotificationCenter notices)
         {
             this.owner = owner;
+            this.notices = notices;
             CheckCommand = new RelayCommand(async () => await CheckAsync(), () => !IsBusy);
             ExportCommand = new RelayCommand(Export, () => !IsBusy && Lines.Count > 0);
         }
@@ -99,7 +101,7 @@ namespace SWGrade.Desktop
             private set { isBusy = value; Notify(); Notify(nameof(ShowConnectionHelp)); }
         }
 
-        internal async Task CheckAsync()
+        internal async Task CheckAsync(bool notify = true)
         {
             if (IsBusy)
                 return;
@@ -122,7 +124,7 @@ namespace SWGrade.Desktop
             {
                 Lines.Add(CadAnalysis.DescribeError(exception));
                 detection = null;
-                checkError = "无法完成检测。请在设置中查看详细诊断，再重新检测。";
+                checkError = "无法完成检测。请在设置开启开发模式查看详细诊断，再重新检测。";
                 IsConnected = false;
                 State = "检测失败";
                 NotifyDetection();
@@ -131,6 +133,14 @@ namespace SWGrade.Desktop
             {
                 IsBusy = false;
                 CommandManager.InvalidateRequerySuggested();
+            }
+
+            if (notify)
+            {
+                if (IsConnected)
+                    notices.Publish("SOLIDWORKS 已连接", "当前版本为 " + DetectedVersion + "。");
+                else
+                    notices.Publish("SOLIDWORKS 连接检测", ConnectionHelp, NoticeKind.Warning);
             }
         }
 
@@ -155,10 +165,12 @@ namespace SWGrade.Desktop
                 using (var writer = new StreamWriter(output, new UTF8Encoding(false)))
                     foreach (var line in Lines)
                         writer.WriteLine(line);
+                notices.Publish("已导出诊断", "SOLIDWORKS 环境诊断已保存。");
             }
             catch (Exception exception)
             {
-                MessageBox.Show(owner, exception.Message, "诊断导出失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Diagnostics.Trace.TraceWarning(CadAnalysis.DescribeError(exception));
+                notices.Publish("诊断导出失败", "请选择可写目录和新的 .txt 文件名。", NoticeKind.Error);
             }
         }
 

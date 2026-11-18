@@ -12,7 +12,7 @@ namespace SWGrade.SolidWorks
     public static class CadAnalysis
     {
         public static ModelInspectionResult Run(string modelPath, string configuration, string expectedYear,
-            bool probeUtilities, Action<string> report)
+            bool probeUtilities, Action<string> report, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
             return WithSession(expectedYear, report, (interop, session) =>
             {
@@ -24,7 +24,7 @@ namespace SWGrade.SolidWorks
                     return null;
                 }
 
-                return ReadSavedCopy(interop, session, modelPath, configuration);
+                return ReadSavedCopy(interop, session, modelPath, configuration, sheetMetal: sheetMetal);
             });
         }
 
@@ -50,7 +50,7 @@ namespace SWGrade.SolidWorks
                 else if (exception is InvalidOperationException)
                     detection.Message = exception.Message;
                 else
-                    detection.Message = "环境或 CAD 连接检查失败。请确认 CAD 主窗口、许可证以及运行权限，然后重试。原因可在设置的详细诊断中查看。";
+                    detection.Message = "环境或 CAD 连接检查失败。请确认 CAD 主窗口、许可证以及运行权限，然后重试。原因可在设置开启开发模式后查看。";
             }
             return detection;
         }
@@ -59,7 +59,7 @@ namespace SWGrade.SolidWorks
         {
             return WithSession(expectedYear, report, (interop, session) =>
             {
-                using (var copy = ModelCopy.Create(modelPath))
+                using (var copy = ModelCopy.Create(modelPath, interop.Log))
                 {
                     // Reading the saved configuration catalog does not require opening the part.
                     var rawNames = interop.Call("ISldWorks", session.App, "GetConfigurationNames", copy.WorkingPath) as Array;
@@ -97,25 +97,26 @@ namespace SWGrade.SolidWorks
         public static OpenPartInfo GetActivePart(string expectedYear, Action<string> report) =>
             WithSession(expectedYear, report, OpenCadParts.Active);
 
-        public static CadPartPreview PreviewFile(string path, string configuration, string expectedYear, Action<string> report)
+        public static CadPartPreview PreviewFile(string path, string configuration, string expectedYear, Action<string> report,
+            SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
             return WithSession(expectedYear, report, (interop, session) =>
             {
                 var preview = new CadPartPreview();
-                preview.Inspection = ReadSavedCopy(interop, session, path, configuration, preview);
+                preview.Inspection = ReadSavedCopy(interop, session, path, configuration, preview, sheetMetal);
                 return preview;
             });
         }
 
         public static CadPartPreview PreviewOpenPart(OpenPartInfo part, string configuration,
-            string expectedYear, Action<string> report)
+            string expectedYear, Action<string> report, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
             EnsureSavedPart(part);
             return WithSession(expectedYear, report, (interop, session) =>
             {
                 var preview = new CadPartPreview();
                 var refreshed = OpenCadParts.RefreshSelection(interop, session, part);
-                preview.Inspection = ReadOpenPartCopy(interop, session, refreshed, configuration, preview);
+                preview.Inspection = ReadOpenPartCopy(interop, session, refreshed, configuration, preview, sheetMetal);
                 return preview;
             });
         }
@@ -167,7 +168,7 @@ namespace SWGrade.SolidWorks
         }
 
         private static ModelInspectionResult ReadOpenPartCopy(CadInterop interop, CadSession session, OpenPartInfo part,
-            string configuration, CadPartPreview preview = null)
+            string configuration, CadPartPreview preview = null, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
             EnsureSavedPart(part);
             interop.Log("已从 CAD 会话选定零件。接下来读取磁盘上的已保存版本。");
@@ -175,7 +176,7 @@ namespace SWGrade.SolidWorks
             if (warning != null)
                 interop.Log(warning);
 
-            var result = ReadSavedCopy(interop, session, part.Path, part.ConfigurationForRead(configuration), preview);
+            var result = ReadSavedCopy(interop, session, part.Path, part.ConfigurationForRead(configuration), preview, sheetMetal);
             result.FromOpenCadDocument = true;
             result.OpenCadDocumentNeedsSave = part.NeedsSave;
             if (warning != null)
@@ -185,9 +186,9 @@ namespace SWGrade.SolidWorks
         }
 
         private static ModelInspectionResult ReadSavedCopy(CadInterop interop, CadSession session, string modelPath,
-            string configuration, CadPartPreview preview = null)
+            string configuration, CadPartPreview preview = null, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
-            using (var copy = ModelCopy.Create(modelPath))
+            using (var copy = ModelCopy.Create(modelPath, interop.Log))
             {
                 var result = new ModelInspectionResult
                 {
@@ -198,21 +199,38 @@ namespace SWGrade.SolidWorks
                 };
                 interop.Log("源文件：{0}", copy.SourcePath);
                 interop.Log("SHA-256：{0}", copy.Hash);
+                int references = interop.ReferenceCheckpoint;
+                bool closed = false;
                 try
                 {
-                    Action<object> readPreview = null;
-                    if (preview != null)
-                        readPreview = model => preview.ReadMesh(interop, model);
-                    new PartProbe(interop, session.App, result).Read(copy.WorkingPath, configuration, readPreview);
+                    new PartProbe(interop, session.App, result).Read(copy.WorkingPath, configuration, sheetMetal, preview);
+                    closed = true;
                 }
                 finally
                 {
+                    if (!closed && !IsCopyClosed(interop, session, copy.WorkingPath))
+                        copy.PreserveForCad();
+                    interop.ReleaseAfter(references);
+
                     copy.VerifySource();
                     interop.Log("源文件保护检查：SHA-256 与最后写入时间一致。");
                 }
 
                 result.SourceIntegrityVerified = true;
                 return result;
+            }
+        }
+
+        private static bool IsCopyClosed(CadInterop interop, CadSession session, string path)
+        {
+            try
+            {
+                return interop.Call("ISldWorks", session.App, "GetOpenDocumentByName", path) == null;
+            }
+            catch (Exception exception)
+            {
+                interop.Log("无法核实工作副本的关闭状态：" + DescribeError(exception));
+                return false;
             }
         }
 

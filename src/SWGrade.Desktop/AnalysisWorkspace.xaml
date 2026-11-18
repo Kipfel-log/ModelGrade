@@ -1,9 +1,9 @@
 <UserControl x:Class="SWGrade.Desktop.AnalysisWorkspace"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:SWGrade.Desktop"
-             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+             xmlns:local="clr-namespace:SWGrade.Desktop">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/>
         <DataTemplate x:Key="PartSelector">
             <StackPanel>
                 <Border Background="{DynamicResource SurfaceAlt}" CornerRadius="8" Padding="12" Margin="0,0,0,12" MinHeight="75">
@@ -30,6 +30,32 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
                 <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="ConfigurationSummary">
+            <Expander IsExpanded="{Binding IsPrimary, Mode=OneTime}" Margin="0,0,0,8">
+                <Expander.Header>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Role}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Configuration}" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Expander.Header>
+                <StackPanel Margin="0,9,0,0">
+                    <TextBlock Text="{Binding FileName}" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource PropertyRow}"/>
+                </StackPanel>
+            </Expander>
+        </DataTemplate>
+        <DataTemplate x:Key="FeatureDisplay">
+            <Grid Margin="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto" MinWidth="74"/>
+                    <ColumnDefinition Width="Auto" MinWidth="74"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" ToolTip="{Binding Code}" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding Current}" Grid.Column="1" Margin="0,0,10,0" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Reference}" Grid.Column="2" TextWrapping="Wrap"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -81,6 +107,12 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    <WrapPanel HorizontalAlignment="Center" Margin="0,16,0,0">
+                        <Label Content="零件类型" Target="{Binding ElementName=SheetMetalMode}" Padding="0,5,9,5"/>
+                        <ComboBox x:Name="SheetMetalMode" MinWidth="175"
+                                  ItemsSource="{Binding SheetMetalOptions}" DisplayMemberPath="Label" SelectedValuePath="Mode"
+                                  SelectedValue="{Binding SheetMetal, Mode=TwoWay}"/>
+                    </WrapPanel>
                     <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0">
                         <TextBlock Text="选择两件可对照，仅选当前件可单独分析。" Foreground="{DynamicResource Muted}"
                                    Margin="0,0,0,10" TextAlignment="Center" TextWrapping="Wrap"/>
@@ -120,63 +152,95 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="4*" MinWidth="240"/>
+                    <ColumnDefinition Width="4*" MinWidth="208"/>
                     <ColumnDefinition Width="14"/>
-                    <ColumnDefinition Width="7*"/>
+                    <ColumnDefinition Width="8*"/>
                 </Grid.ColumnDefinitions>
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="14"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Border Style="{StaticResource Panel}" MaxHeight="276">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="零件信息" Style="{StaticResource SectionTitle}"/>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding Overview}" ItemTemplate="{StaticResource PropertyRow}"/>
-                            </ScrollViewer>
-                        </DockPanel>
-                    </Border>
-                    <Border Grid.Row="2" Style="{StaticResource Panel}">
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Top">
-                                <TextBlock Text="{Binding FindingHeading}" Style="{StaticResource SectionTitle}"/>
-                                <CheckBox Content="仅看异常与待复核" IsChecked="{Binding OnlyIssues}" Margin="0,0,0,10">
-                                    <CheckBox.Style>
-                                        <Style TargetType="CheckBox">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,4,0">
+                        <Border Style="{StaticResource Panel}" Padding="14" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="零件信息" Style="{StaticResource SectionTitle}"/>
+                                <ContentControl Content="{Binding CurrentSummary}" ContentTemplate="{StaticResource ConfigurationSummary}"/>
+                                <ContentControl Content="{Binding ReferenceSummary}" ContentTemplate="{StaticResource ConfigurationSummary}">
+                                    <ContentControl.Style>
+                                        <Style TargetType="ContentControl">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Scene.Reference}" Value="{x:Null}">
+                                                <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </CheckBox.Style>
-                                </CheckBox>
+                                    </ContentControl.Style>
+                                </ContentControl>
                             </StackPanel>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <StackPanel>
-                                    <ItemsControl x:Name="FindingItems" ItemsSource="{Binding Findings}">
+                        </Border>
+                        <Border Style="{StaticResource Panel}" Padding="14">
+                            <StackPanel>
+                                <TextBlock Text="需要关注" Style="{StaticResource SectionTitle}"/>
+                                <ItemsControl x:Name="FindingItems" ItemsSource="{Binding Findings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,9">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Description}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="没有需要立即处理的提示。" TextWrapping="Wrap" Foreground="{DynamicResource Muted}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasItems, ElementName=FindingItems}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+                <Border Grid.Column="2" Style="{StaticResource Panel}" Padding="12">
+                    <TabControl Padding="7" SelectedIndex="{Binding ResultTab, Mode=TwoWay}">
+                        <TabItem Header="{Binding FoldedTabTitle}">
+                            <local:PartViewport Scene="{Binding Scene}"/>
+                        </TabItem>
+                        <TabItem Header="展开图" Visibility="{Binding ShowSheetMetal, Converter={StaticResource VisibleWhenTrue}}">
+                            <local:PartViewport IsFlatPattern="True" Scene="{Binding Scene}"/>
+                        </TabItem>
+                        <TabItem Header="参数对照">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="3,0,6,0">
+                                    <TextBlock Text="用默认容差对照两件的参数。按作业容差计分可切换到「评分试算」。"
+                                               Style="{StaticResource Description}" Margin="0,0,0,12"/>
+                                    <ItemsControl x:Name="ParameterItems" ItemsSource="{Binding ParameterRows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Expander Margin="0,0,0,8" Padding="0">
-                                                    <Expander.Header>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,9,0"/>
-                                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}"/>
-                                                        </StackPanel>
-                                                    </Expander.Header>
-                                                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,6,0,2"/>
-                                                </Expander>
+                                                <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                    <StackPanel>
+                                                        <WrapPanel>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,12,0"/>
+                                                            <TextBlock Text="{Binding Conclusion}" Foreground="{DynamicResource Accent}"/>
+                                                        </WrapPanel>
+                                                        <TextBlock Text="{Binding Measurements}" Style="{StaticResource Description}"/>
+                                                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Description}"/>
+                                                    </StackPanel>
+                                                </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <TextBlock Text="当前没有异常提示。" Foreground="{DynamicResource Muted}">
+                                    <TextBlock Text="加选一个参考件后，可在这里查看参数差异。" TextWrapping="Wrap">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasItems, ElementName=FindingItems}" Value="False">
+                                                    <DataTrigger Binding="{Binding HasItems, ElementName=ParameterItems}" Value="False">
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -185,63 +249,82 @@
                                     </TextBlock>
                                 </StackPanel>
                             </ScrollViewer>
-                        </DockPanel>
-                    </Border>
-                </Grid>
-                <Border Grid.Column="2" Style="{StaticResource Panel}">
-                    <TabControl Padding="9">
-                        <TabItem Header="三维观察">
-                            <local:PartViewport Scene="{Binding Scene}"/>
                         </TabItem>
-                        <TabItem Header="模型信息">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding Details}" ItemTemplate="{StaticResource PropertyRow}"/>
+                        <TabItem Header="建模特征">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="3,0,6,0">
+                                    <TextBlock Text="{Binding FeatureNote}" Style="{StaticResource Description}" Margin="0,0,0,12"/>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto" MinWidth="74"/>
+                                            <ColumnDefinition Width="Auto" MinWidth="74"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="常用建模特征" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Column="1" Text="当前件" FontWeight="SemiBold"/>
+                                        <TextBlock Grid.Column="2" Text="参考件" FontWeight="SemiBold"/>
+                                    </Grid>
+                                    <ItemsControl x:Name="KeyFeatureItems" ItemsSource="{Binding KeyFeatures}" ItemTemplate="{StaticResource FeatureDisplay}"/>
+                                    <TextBlock Text="未读取到清单中的常用建模特征，可展开全部类型查看。" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasItems, ElementName=KeyFeatureItems}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Expander Header="全部类型及作业规则用名" Margin="0,12,0,0">
+                                        <DataGrid ItemsSource="{Binding AllFeatures}" AutoGenerateColumns="False" IsReadOnly="True"
+                                                  CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="规则用名" Binding="{Binding Code}" Width="*" ElementStyle="{StaticResource TableCellText}"/>
+                                                <DataGridTextColumn Header="当前件" Binding="{Binding Current}" Width="74" ElementStyle="{StaticResource TableCellText}"/>
+                                                <DataGridTextColumn Header="参考件" Binding="{Binding Reference}" Width="74" ElementStyle="{StaticResource TableCellText}"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Expander>
+                                </StackPanel>
                             </ScrollViewer>
                         </TabItem>
-                        <TabItem Header="特征类型">
-                            <DataGrid ItemsSource="{Binding FeatureRows}" AutoGenerateColumns="False" IsReadOnly="True"
-                                      CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="零件" Binding="{Binding Role}" Width="98"/>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="特征类型" Binding="{Binding Name}" Width="*"/>
-                                    <DataGridTextColumn ElementStyle="{StaticResource TableCellText}" Header="数量" Binding="{Binding Count}" Width="80"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </TabItem>
-                        <TabItem Header="诊断">
-                            <TextBox Text="{Binding Diagnostics, Mode=OneWay}" IsReadOnly="True"
-                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
+                        <TabItem Header="评分试算">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="3,0,6,0">
+                                    <Label Content="评分作业" Target="{Binding ElementName=ScoringAssignment}" Padding="0,0,0,5"/>
+                                    <ComboBox x:Name="ScoringAssignment" ItemsSource="{Binding Assignments}" SelectedItem="{Binding SelectedAssignment}"
+                                              DisplayMemberPath="Name" AutomationProperties.Name="评分作业"/>
+                                    <TextBlock Text="{Binding TrialMessage}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,12,0,12"/>
+                                    <ItemsControl ItemsSource="{Binding TrialChecks}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                    <StackPanel>
+                                                        <WrapPanel>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,12,0" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Score}" Foreground="{DynamicResource Accent}"/>
+                                                        </WrapPanel>
+                                                        <TextBlock Text="{Binding Measurements}" Style="{StaticResource Description}"/>
+                                                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Description}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
                         </TabItem>
                     </TabControl>
                 </Border>
             </Grid>
         </Grid>
 
-        <StackPanel Grid.Row="1" Margin="0,12,0,0">
-            <ui:InfoBar IsOpen="{Binding HasStatus, Mode=OneWay}" IsClosable="False" Title="分析状态" Message="{Binding Status}">
-                <ui:InfoBar.Style>
-                    <Style TargetType="ui:InfoBar" BasedOn="{StaticResource {x:Type ui:InfoBar}}">
-                        <Setter Property="Severity" Value="Informational"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasError}" Value="True">
-                                <Setter Property="Severity" Value="Error"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ui:InfoBar.Style>
-            </ui:InfoBar>
-            <ProgressBar Height="3" Margin="0,5,0,0" IsIndeterminate="True">
-                <ProgressBar.Style>
-                    <Style TargetType="ProgressBar">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ProgressBar.Style>
-            </ProgressBar>
+        <StackPanel Grid.Row="1" Margin="0,10,0,0"
+                    Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}">
+            <TextBlock Text="{Binding Activity}" Style="{StaticResource Description}" Margin="0"/>
+            <ProgressBar Height="3" Margin="0,5,0,0" IsIndeterminate="True"/>
         </StackPanel>
     </Grid>
 </UserControl>

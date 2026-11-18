@@ -42,13 +42,31 @@ namespace SWGrade.Desktop
         internal ComparisonRow(GradeCheck check) { this.check = check; }
 
         public string Name => check.Name;
-        public string Standard => ReportExporter.Measurement(check.StandardValue, check.Unit);
-        public string Student => ReportExporter.Measurement(check.StudentValue, check.Unit);
-        public string Absolute => ReportExporter.Measurement(check.AbsoluteError, check.Unit);
-        public string Relative => ReportExporter.Measurement(check.RelativeError, null);
-        public string Tolerance => ReportExporter.Measurement(check.EffectiveTolerance, check.Unit);
+        public string Standard => Format(check.StandardValue);
+        public string Student => Format(check.StudentValue);
+        public string Absolute => Format(check.AbsoluteError);
+        public string Relative => Percent(check.RelativeError);
+        public string Tolerance => Format(check.EffectiveTolerance);
         public string Conclusion => StateText.Check(check.Status);
-        public string Score => ReportExporter.Score(check.Awarded) + " / " + ReportExporter.Score(check.Weight);
+        public string Score => check.Weight == 0 ? Conclusion : (check.Awarded.HasValue ? ReportExporter.Score(check.Awarded) : "待复核") +
+            " / " + ReportExporter.Score(check.Weight);
         public string Reason => check.Reason;
+        public string Measurements => check.AbsoluteError.HasValue
+            ? $"标准 {Standard} · 当前 {Student} · 实际差值 {Absolute} · 允许 {Tolerance}"
+            : check.StandardValue.HasValue || check.StudentValue.HasValue ? $"标准 {Standard} · 当前 {Student}" : "";
+
+        private string Format(double? value)
+        {
+            switch (check.Unit)
+            {
+                case "m³": return ReportExporter.Measurement(value * ToleranceUnits.CubicCentimetresPerCubicMetre, "cm³");
+                case "m²": return ReportExporter.Measurement(value * ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²");
+                case "kg": return ReportExporter.Measurement(value * ToleranceUnits.GramsPerKilogram, "g");
+                case "比例": return Percent(value);
+                default: return ReportExporter.Measurement(value, check.Unit);
+            }
+        }
+
+        private static string Percent(double? value) => ReportExporter.Measurement(value * 100, "%");
     }
 }

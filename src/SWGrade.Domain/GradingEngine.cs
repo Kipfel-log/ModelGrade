@@ -16,10 +16,21 @@ namespace SWGrade.Domain
 
             var grade = new GradeResult { Geometry = geometry };
             string evidenceProblem = EvidenceProblem(rules, reference, student, studentConfigurationOverride);
+            GradeCheck flat = null;
+            if (SheetMetalComparison.Required(rules.SheetMetal, reference, student))
+            {
+                if ((reference?.SheetMetal?.Detected == true && !reference.SheetMetal.FoldedVerified) ||
+                    (student?.SheetMetal?.Detected == true && !student.SheetMetal.FoldedVerified))
+                    evidenceProblem = evidenceProblem ?? "钣金的折弯态尚未核实，模型参数待复核。";
+                flat = SheetMetalComparison.Check(rules, reference, student, evidenceProblem);
+                if (flat.Status == CheckStatus.Fail && (rules.GeometryWeight == 0 || rules.GeometryPolicy == GeometryPolicy.TeacherReview))
+                    flat.Status = CheckStatus.Unverified;
+                grade.Checks.Add(flat);
+            }
             grade.Checks.Add(Check("模型和配置", 0,
                 evidenceProblem == null ? CheckStatus.Pass : CheckStatus.Unverified,
                 evidenceProblem ?? "来源、CAD 版本、配置和重建状态已核对。"));
-            grade.Checks.Add(GradeGeometry(rules, geometry, evidenceProblem));
+            grade.Checks.Add(GradeGeometry(rules, geometry, evidenceProblem, flat));
             grade.Checks.AddRange(GradeParameters(rules, reference, student, evidenceProblem));
             grade.Checks.AddRange(GradeFeatures(rules, student, evidenceProblem));
             return grade;
@@ -146,7 +157,7 @@ namespace SWGrade.Domain
             }
         }
 
-        private static GradeCheck GradeGeometry(AssignmentRules rules, GeometryEvidence geometry, string problem)
+        private static GradeCheck GradeGeometry(AssignmentRules rules, GeometryEvidence geometry, string problem, GradeCheck flat)
         {
             decimal weight = rules.GeometryWeight;
             if (weight == 0)
@@ -155,6 +166,8 @@ namespace SWGrade.Domain
                 return Check("几何差异", weight, CheckStatus.Unverified, problem);
             if (rules.GeometryPolicy == GeometryPolicy.TeacherReview)
                 return Check("几何差异", weight, CheckStatus.Unverified, "教师选择人工复核几何。");
+            if (flat != null && flat.Status != CheckStatus.Pass)
+                return Check("几何差异", weight, flat.Status, "几何分要求折弯态和展开图均符合。 " + flat.Reason);
 
             if (geometry?.ValidatedComparison != true || !(geometry.ReferenceVolumeM3 > 0) ||
                 !ValidMeasurement(geometry.ReferenceVolumeM3).HasValue ||
@@ -175,6 +188,7 @@ namespace SWGrade.Domain
                 tolerance = band?.MaximumRatio ?? rules.GeometryBands.Last().MaximumRatio;
             }
             var check = Check("几何差异", weight, fraction == 1 ? CheckStatus.Pass : CheckStatus.Fail,
+                (geometry.Reason == null ? "" : geometry.Reason + " ") +
                 "差异率按标准体积归一化。得分比例 " + fraction.ToString(CultureInfo.InvariantCulture) + "。");
             check.Awarded = decimal.Round(weight * fraction, 2, MidpointRounding.AwayFromZero);
             check.StudentValue = ratio;

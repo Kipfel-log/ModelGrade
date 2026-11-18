@@ -38,6 +38,8 @@ namespace SWGrade.Probe
                 Require(File.GetLastWriteTimeUtc(source) == writeTime && File.ReadAllBytes(source).AsSpan().SequenceEqual(bytes),
                     "源文件内容和最后写入时间保留");
 
+                CheckDeferredCleanup(source);
+
                 using (var copy = ModelCopy.Create(source))
                 {
                     File.WriteAllBytes(source, new byte[] { 1, 2, 3, 4 });
@@ -53,6 +55,56 @@ namespace SWGrade.Probe
             finally
             {
                 Directory.Delete(folder, true);
+            }
+        }
+
+        private static void CheckDeferredCleanup(string source)
+        {
+            var logs = new System.Collections.Generic.List<string>();
+            string leftover;
+            string workingPath;
+            using (var copy = ModelCopy.Create(source, logs.Add))
+            {
+                workingPath = copy.WorkingPath;
+                leftover = Path.Combine(Path.GetDirectoryName(workingPath), "unrelated.tmp");
+                File.WriteAllText(leftover, "test file");
+                copy.VerifySource();
+            }
+            try
+            {
+                Require(!File.Exists(workingPath) && File.Exists(leftover) && logs.Exists(line => line.Contains("清理已延后")),
+                    "目录暂时非空时保留其他文件，不将已验证结果标为失败");
+                using (var repeated = ModelCopy.Create(source, logs.Add))
+                {
+                    Require(repeated.WorkingPath != workingPath, "后续分析使用新副本，不受上一次清理影响");
+                    repeated.VerifySource();
+                }
+            }
+            finally
+            {
+                File.Delete(leftover);
+            }
+            using (var repeated = ModelCopy.Create(source, logs.Add))
+            {
+                Require(!Directory.Exists(Path.GetDirectoryName(workingPath)) && logs.Exists(line => line.Contains("已补清理")),
+                    "目录可以删除后自动补清理");
+            }
+
+            string preserved;
+            using (var copy = ModelCopy.Create(source))
+            {
+                preserved = copy.WorkingPath;
+                copy.PreserveForCad();
+            }
+            try
+            {
+                using var repeated = ModelCopy.Create(source);
+                Require(File.Exists(preserved), "关闭状态不明时保留 CAD 工作副本");
+            }
+            finally
+            {
+                File.Delete(preserved);
+                Directory.Delete(Path.GetDirectoryName(preserved));
             }
         }
 

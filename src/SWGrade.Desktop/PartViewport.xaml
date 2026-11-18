@@ -7,12 +7,13 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <DockPanel Margin="0,0,0,10" LastChildFill="False">
-            <TextBlock Text="模型观察" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+        <WrapPanel Margin="0,0,0,10">
+            <Button x:Name="OverlayButton" Content="叠加差异" Click="ShowOverlay"/>
             <Button x:Name="CurrentButton" Content="当前件" Click="ShowCurrent"/>
             <Button x:Name="ReferenceButton" Content="参考件" Click="ShowReference"/>
             <Button x:Name="ResetButton" Content="重置视角" Click="ResetView"/>
-        </DockPanel>
+            <CheckBox x:Name="DifferencesOnly" Content="仅看差异" Click="ToggleShared" VerticalAlignment="Center"/>
+        </WrapPanel>
         <Border x:Name="Surface" Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource Line}"
                 Background="{DynamicResource ViewportSurface}" CornerRadius="6" ClipToBounds="True"
                 MouseDown="BeginMove" MouseUp="EndMove" MouseMove="Move" MouseWheel="Zoom"
@@ -39,13 +40,25 @@
             </Grid>
         </Border>
         <StackPanel Grid.Row="2" Margin="0,10,0,0">
-            <DockPanel>
-                <TextBlock x:Name="VisibleName" DockPanel.Dock="Left" FontWeight="SemiBold" Margin="0,0,14,0"/>
-                <TextBlock Text="左键旋转 · 右键平移 · 滚轮缩放" Foreground="{DynamicResource Muted}"
-                           TextAlignment="Right" TextWrapping="Wrap"/>
-            </DockPanel>
-            <TextBlock x:Name="GeometryNotice" Text="局部几何差异高亮尚未实现。"
-                       Foreground="{DynamicResource Muted}" FontSize="13" Margin="0,5,0,0" TextWrapping="Wrap"/>
+            <TextBlock x:Name="VisibleName" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <WrapPanel x:Name="Legend" Margin="0,6,0,0">
+                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <Ellipse Width="10" Height="10" Fill="#8E9BA4" Margin="0,0,6,0"/>
+                    <TextBlock Text="重叠"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <Ellipse Width="10" Height="10" Fill="#2E6CB6" Margin="0,0,6,0"/>
+                    <TextBlock Text="当前件有差异"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="10" Height="10" Fill="#C86423" Margin="0,0,6,0"/>
+                    <TextBlock Text="参考件有差异"/>
+                </StackPanel>
+            </WrapPanel>
+            <TextBlock x:Name="GeometryNotice" Foreground="{DynamicResource Muted}" FontSize="13"
+                       Margin="0,5,0,0" TextWrapping="Wrap"/>
+            <TextBlock Text="左键旋转 · 右键平移 · 滚轮缩放" Foreground="{DynamicResource Muted}"
+                       Margin="0,5,0,0" TextWrapping="Wrap"/>
         </StackPanel>
     </Grid>
 </UserControl>

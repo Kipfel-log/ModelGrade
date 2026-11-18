@@ -85,12 +85,21 @@
                 </Border>
             </UniformGrid>
 
-            <ui:InfoBar IsOpen="{Binding Connection.ShowConnectionHelp, Mode=OneWay}" IsClosable="False"
-                        Severity="Warning" Title="SOLIDWORKS 目前无法用于分析"
-                        Message="{Binding Connection.ConnectionHelp}"
-                        Margin="0,0,0,16">
-                <Button Content="连接设置" Command="{Binding SettingsCommand}" Margin="0,4,0,0" HorizontalAlignment="Left"/>
-            </ui:InfoBar>
+            <DockPanel Margin="0,0,0,16">
+                <DockPanel.Style>
+                    <Style TargetType="DockPanel">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Connection.ShowConnectionHelp}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DockPanel.Style>
+                <Button DockPanel.Dock="Right" Content="连接设置" Command="{Binding SettingsCommand}" Margin="12,0,0,0"/>
+                <TextBlock Text="请确认 SOLIDWORKS 主窗口与许可证可用，再重新检测。" Style="{StaticResource Description}" Margin="0"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
 
             <TextBlock Text="开始工作" Style="{StaticResource SectionTitle}"/>
             <UniformGrid x:Name="Actions" Columns="3" Margin="0,0,-12,12">
@@ -129,8 +138,14 @@
                         <Button DockPanel.Dock="Right" Content="查看批改记录" Command="{Binding OpenRecordsCommand}" Margin="8,0,0,0"/>
                         <TextBlock Text="最近任务" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0"/>
                     </DockPanel>
-                    <ui:InfoBar IsOpen="{Binding History.HasError, Mode=OneWay}" IsClosable="False" Severity="Error"
-                                Title="无法读取记录" Message="{Binding History.Error}" Margin="0,0,0,8"/>
+                    <TextBlock Text="本机记录暂不可用。可在批改记录页重新读取。" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,8">
+                        <TextBlock.Visibility>
+                            <Binding Path="History.HasError">
+                                <Binding.Converter><BooleanToVisibilityConverter/></Binding.Converter>
+                            </Binding>
+                        </TextBlock.Visibility>
+                    </TextBlock>
                     <TextBlock Text="正在读取本机批改记录…" Foreground="{DynamicResource Muted}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">

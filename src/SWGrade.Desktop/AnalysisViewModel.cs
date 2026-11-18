@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -19,19 +20,26 @@ namespace SWGrade.Desktop
     {
         private readonly Window owner;
         private readonly Func<string> expectedYear;
+        private readonly NotificationCenter notices;
         private AnalysisScene scene;
         private ModelComparison report;
-        private string status = "";
+        private string activity = "";
         private string diagnostics = "";
         private bool busy;
         private bool showResult;
-        private bool onlyIssues = true;
-        private bool hasError;
+        private Assignment selectedAssignment;
+        private GradeResult trialGrade;
+        private int resultTab;
+        private string trialMessage;
 
-        internal AnalysisViewModel(Window owner, Func<string> expectedYear)
+        internal AnalysisViewModel(Window owner, Func<string> expectedYear, ObservableCollection<Assignment> assignments,
+            NotificationCenter notices)
         {
             this.owner = owner;
             this.expectedYear = expectedYear;
+            this.notices = notices;
+            Assignments = assignments;
+            Assignments.CollectionChanged += (_, __) => UpdateTrial();
             Reference = new PartInput(owner, this);
             Current = new PartInput(owner, this);
             SwapCommand = new RelayCommand(Swap, () => CanEdit && (Reference.HasPart || Current.HasPart));
@@ -39,6 +47,7 @@ namespace SWGrade.Desktop
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
             CopyCommand = new RelayCommand(Copy, () => CanEdit && Scene != null);
             ExportCommand = new RelayCommand(Export, () => CanEdit && Scene != null);
+            UpdateTrial();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -51,16 +60,21 @@ namespace SWGrade.Desktop
         public ICommand ExportCommand { get; }
         public bool CanEdit => !IsBusy;
         public string AnalyzeLabel => Reference.HasPart ? "开始对照 →" : "分析当前件 →";
+        public SheetMetalOption[] SheetMetalOptions => SheetMetalOption.Choices;
+        public SheetMetalMode SheetMetal { get; set; }
+        public int ResultTab { get => resultTab; set { resultTab = value; Notify(); } }
+        public bool ShowSheetMetal => Scene?.HasSheetMetal == true;
+        public string FoldedTabTitle => !ShowSheetMetal ? "三维叠加" :
+            (Scene.Current.Inspection.SheetMetal?.FoldedVerified == true &&
+                (Scene.Reference == null || Scene.Reference.Inspection.SheetMetal?.FoldedVerified == true))
+                ? "折弯态" : "保存态 / 折弯态";
         public string ResultTitle => report == null ? "单件分析结果" : "零件对照结果";
         public string Diagnostics { get => diagnostics; private set { diagnostics = value; Notify(); } }
-        public string Status
+        public string Activity
         {
-            get => status;
-            private set { status = value; Notify(); Notify(nameof(HasStatus)); }
+            get => activity;
+            private set { activity = value; Notify(); }
         }
-
-        public bool HasStatus => !string.IsNullOrWhiteSpace(Status);
-        public bool HasError { get => hasError; private set { hasError = value; Notify(); } }
 
         public AnalysisScene Scene
         {
@@ -70,27 +84,68 @@ namespace SWGrade.Desktop
                 scene = value;
                 Notify();
                 Notify(nameof(ResultTitle));
-                Notify(nameof(Overview));
-                Notify(nameof(Details));
-                Notify(nameof(FeatureRows));
+                Notify(nameof(ShowSheetMetal));
+                Notify(nameof(FoldedTabTitle));
+                Notify(nameof(CurrentSummary));
+                Notify(nameof(ReferenceSummary));
+                Notify(nameof(ParameterRows));
+                Notify(nameof(KeyFeatures));
+                Notify(nameof(AllFeatures));
+                Notify(nameof(FeatureNote));
                 Notify(nameof(Findings));
-                Notify(nameof(FindingHeading));
+                UpdateTrial();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
 
-        public bool OnlyIssues
+        public ObservableCollection<Assignment> Assignments { get; }
+
+        public Assignment SelectedAssignment
         {
-            get => onlyIssues;
+            get => selectedAssignment;
             set
             {
-                onlyIssues = value;
+                if (selectedAssignment == value)
+                    return;
+                selectedAssignment = value;
                 Notify();
-                Notify(nameof(Findings));
+                UpdateTrial();
             }
         }
 
-        public string FindingHeading => report == null ? "异常与提示" : "异常与待复核";
+        public string TrialMessage => trialMessage;
+        public IEnumerable<ComparisonRow> TrialChecks => trialGrade?.Checks.Where(check => check.Weight > 0 || check.Name == "钣金展开图")
+            .Select(check => new ComparisonRow(check)) ?? Enumerable.Empty<ComparisonRow>();
+
+        private void UpdateTrial()
+        {
+            trialGrade = null;
+            trialMessage = Assignments.Count == 0
+                ? "保存一份作业后，即可在这里用该作业的规则试算。"
+                : "选一个已保存的作业，按同一套规则查看各项得分。试算结果不会写入成绩册。";
+            if (Scene != null && SelectedAssignment != null)
+            {
+                if (Scene.Reference == null)
+                    trialMessage = "先把作业的标准零件设为参考件，再试算。";
+                else
+                {
+                    try
+                    {
+                        trialGrade = TrialGrading.Evaluate(SelectedAssignment, Scene.Reference.Inspection, Scene.Current.Inspection);
+                        trialMessage = trialGrade.FinalAutoScore.HasValue
+                            ? $"自动得分 {ReportExporter.Score(trialGrade.FinalAutoScore)} / 100"
+                            : trialGrade.EvaluatedPoints == 0 ? "暂无可评估条目，100 分待复核。"
+                            : $"自动得分 {ReportExporter.Score(trialGrade.EarnedPoints)} / {ReportExporter.Score(trialGrade.EvaluatedPoints)} · 另 {ReportExporter.Score(trialGrade.ReviewPoints)} 分待复核";
+                    }
+                    catch (Exception exception) when (exception is InvalidOperationException || exception is ArgumentException)
+                    {
+                        trialMessage = exception.Message;
+                    }
+                }
+            }
+            Notify(nameof(TrialMessage));
+            Notify(nameof(TrialChecks));
+        }
 
         public bool ShowResult
         {
@@ -110,60 +165,33 @@ namespace SWGrade.Desktop
             }
         }
 
-        public IEnumerable<AnalysisRow> Overview
+        public PartSummary CurrentSummary => Scene?.Current == null ? null : new PartSummary("当前配置", Scene.Current.Inspection);
+        public PartSummary ReferenceSummary => Scene?.Reference == null ? null : new PartSummary("参考配置", Scene.Reference.Inspection);
+
+        public IEnumerable<ComparisonRow> ParameterRows => report?.Checks.Where(check =>
+            check.Name != "模型与配置" && check.Name != "几何差异")
+            .Select(check => new ComparisonRow(check)) ?? Enumerable.Empty<ComparisonRow>();
+
+        public IEnumerable<FeatureRow> KeyFeatures => AllFeatures.Where(row => row.IsKeyFeature);
+
+        public IEnumerable<FeatureRow> AllFeatures
         {
             get
             {
-                if (Scene == null)
+                var current = Scene?.Current?.Inspection;
+                if (current == null)
                     yield break;
-
-                var current = Scene.Current.Inspection;
                 var reference = Scene.Reference?.Inspection;
-                yield return Row("当前件", Path.GetFileName(current.SourcePath));
-                if (reference != null)
-                    yield return Row("参考件", Path.GetFileName(reference.SourcePath));
-                yield return Row("当前配置", current.Configuration);
-                if (reference != null)
-                    yield return Row("参考配置", reference.Configuration);
-                yield return Row("当前体积", Volume(current.VolumeM3));
-                yield return Row("当前质量", ReportExporter.Measurement(current.MassKg, "kg"));
-                yield return Row("当前材料", current.MaterialName ?? "待复核");
+                var types = current.FeatureTypes.Keys.Union(reference?.FeatureTypes.Keys ?? Enumerable.Empty<string>());
+                foreach (var kind in types.OrderBy(kind => kind, StringComparer.Ordinal))
+                    yield return new FeatureRow(kind, CountActive(current, kind), CountActive(reference, kind));
             }
         }
 
-        public IEnumerable<AnalysisRow> Details
-        {
-            get
-            {
-                if (Scene == null)
-                    yield break;
-                var current = Scene.Current.Inspection;
-                if (Scene.Reference != null)
-                {
-                    foreach (var entry in ModelDetails("参考件", Scene.Reference.Inspection))
-                        yield return entry;
-                }
-                foreach (var entry in ModelDetails("当前件", current))
-                    yield return entry;
-            }
-        }
-
-        public IEnumerable<FeatureRow> FeatureRows
-        {
-            get
-            {
-                if (Scene?.Reference != null)
-                {
-                    foreach (var item in Scene.Reference.Inspection.FeatureTypes.OrderBy(item => item.Key, StringComparer.Ordinal))
-                        yield return new FeatureRow("参考件", item.Key, item.Value);
-                }
-                if (Scene?.Current != null)
-                {
-                    foreach (var item in Scene.Current.Inspection.FeatureTypes.OrderBy(item => item.Key, StringComparer.Ordinal))
-                        yield return new FeatureRow("当前件", item.Key, item.Value);
-                }
-            }
-        }
+        public string FeatureNote => Scene?.Current?.Inspection.FeatureCountsComplete == false ||
+            Scene?.Reference?.Inspection.FeatureCountsComplete == false
+            ? "部分特征未读取完整。已确认的数量用「至少」标出。"
+            : "只统计当前配置中启用的特征。特征种类和数量可辅助复核建模过程。";
 
         public IEnumerable<AnalysisFinding> Findings
         {
@@ -171,49 +199,72 @@ namespace SWGrade.Desktop
             {
                 if (Scene == null)
                     yield break;
+                string blocker = report?.Checks.FirstOrDefault(check => check.Name == "模型与配置")?.Reason;
+                if (blocker != null)
+                    yield return new AnalysisFinding("检查配置或保存状态", blocker +
+                        " 请核对两边的配置，在 SOLIDWORKS 中重建并保存有问题的零件，再重新分析。");
+
                 if (report != null)
                 {
-                    foreach (var check in report.Checks.Where(check => !OnlyIssues || check.Status != CheckStatus.Pass))
+                    foreach (var check in report.Checks.Where(check => check.Status == CheckStatus.Fail))
+                        yield return AnalysisFinding.ForCheck(check);
+                    foreach (var check in report.Checks.Where(check => check.Status == CheckStatus.Unverified &&
+                        check.Name != "模型与配置" && check.Name != "质量" && check.Name != "零件级材料" &&
+                        check.Name != "几何差异" && check.Reason != blocker))
                         yield return AnalysisFinding.ForCheck(check);
                 }
-                if (Scene.Reference != null)
-                {
-                    foreach (var item in InspectionMessages(Scene.Reference.Inspection))
-                        yield return new AnalysisFinding("参考件", item, "待复核");
-                }
-                foreach (var item in InspectionMessages(Scene.Current.Inspection))
-                    yield return new AnalysisFinding("当前件", item, "待复核");
+
+                var current = Scene.Current.Inspection;
+                var reference = Scene.Reference?.Inspection;
+                if (current.OpenCadDocumentNeedsSave == true || reference?.OpenCadDocumentNeedsSave == true)
+                    yield return new AnalysisFinding("有尚未保存的 CAD 改动", "本次比较的是磁盘上保存的版本。如需比较最新修改，请在 SOLIDWORKS 保存后重试。");
+                if (report == null && (current.RebuildStatusCode != 0 || current.ReviewOpenWarningCode != 0))
+                    yield return new AnalysisFinding("请检查模型状态", "请在 SOLIDWORKS 确认重建及打开状态后重新分析。");
+                if (report == null && !current.VolumeM3.HasValue)
+                    yield return new AnalysisFinding("体积和面积未取得", current.SolidBodyCount == 0
+                        ? "当前配置没有实体。"
+                        : "SOLIDWORKS 未返回有效的实体几何度量。请检查当前配置和实体。");
+                if (!current.FeatureCountsComplete || reference?.FeatureCountsComplete == false)
+                    yield return new AnalysisFinding("特征清单读取不完整", "「建模特征」显示已核实的数量。");
             }
+        }
+
+        private static string CountActive(ModelInspectionResult model, string kind)
+        {
+            if (model == null)
+                return "—";
+            model.ActiveFeatureTypes.TryGetValue(kind, out int active);
+            return model.IsActiveFeatureCountVerified(kind) ? active.ToString() :
+                active == 0 ? "未核实" : "至少 " + active;
         }
 
         internal async Task SelectAsync(PartInput target, bool active)
         {
             IsBusy = true;
-            HasError = false;
-            Status = "正在查询 SOLIDWORKS 打开的零件…";
+            Activity = "正在查询 SOLIDWORKS 打开的零件…";
             try
             {
                 string version = expectedYear();
+                IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
                 var selected = active
-                    ? await StaWorker.Run(() => CadAnalysis.GetActivePart(version, null))
-                    : await OpenPartPicker.PickAsync(owner, version, null);
+                    ? await StaWorker.Run(() => CadAnalysis.GetActivePart(version, progress.Report))
+                    : await OpenPartPicker.PickAsync(owner, version, progress.Report);
                 if (selected == null)
-                {
-                    Status = "已取消选择。";
                     return;
-                }
                 if (!selected.CanRead)
                     throw new InvalidOperationException("请先在 SOLIDWORKS 中将该零件保存为 .SLDPRT。");
                 target.Set(selected.Path, selected, null);
-                Status = selected.NeedsSave ? "CAD 标记该文档需保存，将读取磁盘版本。" : "";
+                if (selected.NeedsSave)
+                    notices.Publish("零件有未保存的改动", "分析将读取磁盘上的保存版本。", NoticeKind.Warning);
             }
             catch (Exception exception)
             {
-                HasError = true;
-                Status = CadAnalysis.DescribeError(exception);
+                Diagnostics += CadAnalysis.DescribeError(exception) + Environment.NewLine;
+                notices.Publish("无法选择零件", FriendlyError(exception), NoticeKind.Error);
             }
             finally
             {
+                Activity = "";
                 IsBusy = false;
             }
         }
@@ -224,7 +275,8 @@ namespace SWGrade.Desktop
             CommandManager.InvalidateRequerySuggested();
         }
 
-        internal void ShowCloseMessage() => Status = "请等待当前 CAD 调用返回及临时副本关闭。";
+        internal void ShowCloseMessage() =>
+            notices.Publish("分析还在运行", "请等待当前 CAD 调用返回及临时副本关闭。", NoticeKind.Warning);
 
         private void Swap()
         {
@@ -233,42 +285,40 @@ namespace SWGrade.Desktop
             string config = Reference.Configuration;
             Reference.Set(Current.SourcePath, Current.OpenPart, Current.Configuration);
             Current.Set(path, openPart, config);
-            HasError = false;
-            Status = "";
         }
 
         private async Task AnalyzeAsync()
         {
             IsBusy = true;
             Diagnostics = "";
-            HasError = false;
-            Status = "正在读取只读副本…";
+            Activity = "正在读取只读副本…";
             ShowResult = false;
+            ResultTab = 0;
             report = null;
             Scene = null;
             try
             {
                 string version = expectedYear();
                 IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
-                var reference = Reference.HasPart ? await Reference.ReadAsync(version, progress.Report) : null;
-                var current = await Current.ReadAsync(version, progress.Report);
+                SheetMetalMode mode = SheetMetal;
+                var reference = Reference.HasPart ? await Reference.ReadAsync(version, progress.Report, mode) : null;
+                var current = await Current.ReadAsync(version, progress.Report, mode);
                 if (reference != null)
                     report = ModelComparison.Evaluate(reference.Inspection, current.Inspection,
-                        Reference.RequestedConfiguration, Current.RequestedConfiguration);
+                        Reference.RequestedConfiguration, Current.RequestedConfiguration, mode);
 
-                Scene = new AnalysisScene(reference, current);
+                Scene = new AnalysisScene(reference, current, mode);
                 ShowResult = true;
-                Status = reference == null ? "当前件读取完成。" : "已读取两件。对照结论和待复核项见结果。";
             }
             catch (Exception exception)
             {
                 string reason = CadAnalysis.DescribeError(exception);
                 Diagnostics += reason + Environment.NewLine;
-                HasError = true;
-                Status = reason;
+                notices.Publish("模型分析失败", FriendlyError(exception), NoticeKind.Error);
             }
             finally
             {
+                Activity = "";
                 IsBusy = false;
             }
         }
@@ -281,13 +331,12 @@ namespace SWGrade.Desktop
             try
             {
                 Clipboard.SetText(ResultJson());
-                HasError = false;
-                Status = "结果 JSON 已复制。";
+                notices.Publish("已复制", "分析结果 JSON 已复制到剪贴板。");
             }
             catch (Exception exception)
             {
-                HasError = true;
-                Status = "复制失败。 " + exception.Message;
+                Diagnostics += CadAnalysis.DescribeError(exception) + Environment.NewLine;
+                notices.Publish("复制失败", "剪贴板暂时无法写入，请再试一次。", NoticeKind.Error);
             }
         }
 
@@ -307,41 +356,19 @@ namespace SWGrade.Desktop
                 if (dialog.ShowDialog(owner) != true)
                     return;
                 InspectionJson.SaveNew(dialog.FileName, ResultJson());
-                HasError = false;
-                Status = "结果 JSON 已导出。";
+                notices.Publish("已导出", "分析结果 JSON 已保存。");
             }
             catch (Exception exception)
             {
-                HasError = true;
-                Status = "导出失败。请选择新的 .json 文件名。 " + exception.Message;
+                Diagnostics += CadAnalysis.DescribeError(exception) + Environment.NewLine;
+                notices.Publish("导出失败", "请选择可写目录和新的 .json 文件名。", NoticeKind.Error);
             }
         }
 
-        private static IEnumerable<string> InspectionMessages(ModelInspectionResult model) => model.Warnings.Concat(model.Errors);
-
-        private static IEnumerable<AnalysisRow> ModelDetails(string role, ModelInspectionResult item)
-        {
-            yield return Row(role, item.SourcePath);
-            yield return Row("来源和版本", (item.FromOpenCadDocument ? "CAD 中已打开的零件 · " : "") +
-                "已保存版本 · SOLIDWORKS " + item.SolidWorksRevision);
-            yield return Row("配置", item.Configuration);
-            yield return Row("重建状态", $"{item.RebuildState}（{item.RebuildStatusCode}）");
-            yield return Row("实体 / 曲面体", $"{item.SolidBodyCount} / {item.SurfaceBodyCount}（含隐藏）");
-            yield return Row("体积", Volume(item.VolumeM3));
-            yield return Row("实体表面积", ReportExporter.Measurement(item.SurfaceAreaM2, "m²"));
-            yield return Row("材料", item.MaterialName ?? "待复核");
-            yield return Row("质量", ReportExporter.Measurement(item.MassKg, "kg"));
-            yield return Row("密度", ReportExporter.Measurement(item.DensityKgPerM3, "kg/m³"));
-            yield return Row("源文件校验", item.SourceIntegrityVerified ? "哈希与最后写入时间一致" : "待复核");
-            yield return Row("SHA-256", item.DocumentHash);
-        }
-
-        private static string Volume(double? value) => value.HasValue
-            ? ReportExporter.Measurement(value, "m³") + " / " + ReportExporter.Measurement(
-                ModelUnits.CubicMetresToCubicCentimetres(value.Value), "cm³")
-            : "待复核";
-
-        private static AnalysisRow Row(string name, string value) => new AnalysisRow(name, value);
+        private static string FriendlyError(Exception exception) =>
+            exception is InvalidOperationException || exception is ArgumentException
+                ? exception.Message
+                : "无法读取零件。请确认 SOLIDWORKS 已启动，并检查所选文件和配置。详细原因可在设置的开发模式查看。";
 
         private void Notify([CallerMemberName] string property = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
@@ -354,48 +381,110 @@ namespace SWGrade.Desktop
         public string Value { get; }
     }
 
+    internal sealed class PartSummary
+    {
+        internal PartSummary(string role, ModelInspectionResult model)
+        {
+            Role = role;
+            IsPrimary = role == "当前配置";
+            Configuration = model.Configuration;
+            FileName = Path.GetFileName(model.SourcePath);
+            var fields = new List<AnalysisRow>
+            {
+                new AnalysisRow("体积", Unit(model.VolumeM3, ToleranceUnits.CubicCentimetresPerCubicMetre, "cm³")),
+                new AnalysisRow("实体表面积", Unit(model.SurfaceAreaM2, ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²")),
+                new AnalysisRow("实体面数", model.SolidFaceCount?.ToString() ?? "未取得"),
+                new AnalysisRow("曲面体面数", model.SurfaceFaceCount?.ToString() ?? "未取得"),
+                new AnalysisRow("实体 / 曲面体", $"{model.SolidBodyCount} / {model.SurfaceBodyCount}"),
+                new AnalysisRow("质量", Unit(model.MassKg, ToleranceUnits.GramsPerKilogram, "g")),
+                new AnalysisRow("材料", model.MaterialName ?? "未取得"),
+                new AnalysisRow("重建状态", model.RebuildStatusCode == 0 ? "已完成" : "需确认")
+            };
+            var sheet = model.SheetMetal;
+            if (sheet?.HasFlatMeasurements == true)
+            {
+                fields.Add(new AnalysisRow("钣金展开", "已读取"));
+                fields.Add(new AnalysisRow("展开态表面积", Unit(sheet.FlatSurfaceAreaM2, ToleranceUnits.SquareCentimetresPerSquareMetre, "cm²")));
+            }
+            else if (sheet?.Issue != null)
+                fields.Add(new AnalysisRow("钣金展开", sheet.Issue));
+            Fields = fields;
+        }
+
+        public string Role { get; }
+        public bool IsPrimary { get; }
+        public string Configuration { get; }
+        public string FileName { get; }
+        public IReadOnlyList<AnalysisRow> Fields { get; }
+
+        private static string Unit(double? value, double conversion, string unit) =>
+            value.HasValue ? ReportExporter.Measurement(ToleranceUnits.ToDisplay(value.Value, conversion), unit) : "未取得";
+    }
+
     internal sealed class FeatureRow
     {
-        internal FeatureRow(string role, string name, int count) { Role = role; Name = name; Count = count; }
-        public string Role { get; }
+        private static readonly Dictionary<string, string> Names = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            { "Boss", "拉伸凸台" }, { "BaseBody", "拉伸基体" }, { "BossThin", "薄壁拉伸" }, { "Cut", "切除拉伸" }, { "CutThin", "薄壁切除" },
+            { "Fillet", "圆角" }, { "Chamfer", "倒角" }, { "HoleWzd", "异型孔" },
+            { "Revolution", "旋转" }, { "RevCut", "旋转切除" }, { "Sweep", "扫描" },
+            { "Blend", "放样" }, { "BlendCut", "放样切除" }, { "LPattern", "线性阵列" }, { "CirPattern", "圆周阵列" },
+            { "ProfileFeature", "草图" }, { "3DProfileFeature", "三维草图" },
+            { "SheetMetal", "钣金" }, { "FlatPattern", "平板型式（控制展开）" },
+            { "UnFold", "展开折弯" }, { "Fold", "折叠" }, { "SMBaseFlange", "钣金基体法兰" },
+            { "EdgeFlange", "钣金边线法兰" }
+        };
+
+        internal FeatureRow(string code, string current, string reference)
+        {
+            Code = code;
+            Name = Names.TryGetValue(code, out string name) ? name : code;
+            Current = current;
+            Reference = reference;
+            IsKeyFeature = name != null;
+        }
+
+        public string Code { get; }
         public string Name { get; }
-        public int Count { get; }
+        public string Current { get; }
+        public string Reference { get; }
+        public bool IsKeyFeature { get; }
     }
 
     internal sealed class AnalysisFinding
     {
-        internal AnalysisFinding(string name, string detail, string status)
+        internal AnalysisFinding(string name, string detail)
         {
-            Name = name; Detail = detail; Status = status;
+            Name = name;
+            Detail = detail;
         }
 
         public string Name { get; }
         public string Detail { get; }
-        public string Status { get; }
 
         internal static AnalysisFinding ForCheck(GradeCheck check)
         {
-            string detail = check.Reason;
-            if (check.AbsoluteError.HasValue)
-            {
-                detail += Environment.NewLine +
-                    $"参考 {ReportExporter.Measurement(check.StandardValue, check.Unit)} · 当前 {ReportExporter.Measurement(check.StudentValue, check.Unit)}" +
-                    Environment.NewLine +
-                    $"绝对误差 {ReportExporter.Measurement(check.AbsoluteError, check.Unit)} · 容差 {ReportExporter.Measurement(check.EffectiveTolerance, check.Unit)}" +
-                    Environment.NewLine +
-                    $"相对误差 {ReportExporter.Measurement(check.RelativeError, null)}";
-            }
-            return new AnalysisFinding(check.Name, detail, StateText.Check(check.Status));
+            if (check.Status != CheckStatus.Fail)
+                return new AnalysisFinding(check.Name + "未能核对", check.Reason);
+            var row = new ComparisonRow(check);
+            return new AnalysisFinding(check.Name + "与参考件不同", check.AbsoluteError.HasValue
+                ? $"参考 {row.Standard}，当前 {row.Student}。实际差值 {row.Absolute}，允许 {row.Tolerance}。"
+                : check.Reason);
         }
     }
 
     public sealed class AnalysisScene
     {
-        internal AnalysisScene(CadPartPreview reference, CadPartPreview current)
+        internal AnalysisScene(CadPartPreview reference, CadPartPreview current, SheetMetalMode mode)
         {
             Reference = reference;
             Current = current;
+            HasSheetMetal = mode == SheetMetalMode.RequireFlatPattern ||
+                reference?.Inspection.SheetMetal?.Detected == true || current?.Inspection.SheetMetal?.Detected == true ||
+                reference?.Inspection.SheetMetal?.Issue != null || current?.Inspection.SheetMetal?.Issue != null;
         }
+
+        internal bool HasSheetMetal { get; }
 
         internal CadPartPreview Reference { get; }
         internal CadPartPreview Current { get; }

@@ -14,6 +14,7 @@ namespace SWGrade.Desktop
     {
         private const string PreferenceKey = @"Software\SWGrade\Desktop";
         private bool dark;
+        private bool developerMode;
         private bool preferMica = true;
         private string materialState = "不透明背景";
 
@@ -24,6 +25,7 @@ namespace SWGrade.Desktop
                 using (var key = Registry.CurrentUser.OpenSubKey(PreferenceKey))
                 {
                     dark = (key?.GetValue("Dark") as int? ?? 0) != 0;
+                    developerMode = (key?.GetValue("DeveloperMode") as int? ?? 0) != 0;
                     preferMica = (key?.GetValue("PreferMica") as int? ?? 1) != 0;
                 }
             }
@@ -58,6 +60,19 @@ namespace SWGrade.Desktop
                 Notify();
                 Save();
                 Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public bool DeveloperMode
+        {
+            get => developerMode;
+            set
+            {
+                if (developerMode == value)
+                    return;
+                developerMode = value;
+                Notify();
+                Save();
             }
         }
 
@@ -126,6 +141,7 @@ namespace SWGrade.Desktop
                 using (var key = Registry.CurrentUser.CreateSubKey(PreferenceKey))
                 {
                     key?.SetValue("Dark", dark ? 1 : 0, RegistryValueKind.DWord);
+                    key?.SetValue("DeveloperMode", developerMode ? 1 : 0, RegistryValueKind.DWord);
                     key?.SetValue("PreferMica", preferMica ? 1 : 0, RegistryValueKind.DWord);
                 }
             }

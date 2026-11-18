@@ -20,7 +20,7 @@
 
 - `RevisionNumber()` 返回版本字符串。探针用首段匹配 33/34，并原样保留 RevisionNumber，供现场核对服务包。进程名称用于枚举候选，不能确定 CAD 版本。
 - `OpenDoc6` 接收文件路径、文档类型、打开选项、配置，以及两个返回的整数标志。直接使用它返回的对象；活动配置必须与用户输入相符。打开成功也要检查 `IsFutureVersion`。类型和标志从安装版 `swconst` 读取。 [2025 枚举索引](https://help.solidworks.com/2025/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html) · [2026 枚举索引](https://help.solidworks.com/2026/english/api/swconst/SolidWorks.Interop.swconst~SolidWorks.Interop.swconst_namespace.html)
-- `GetBodies2(int, bool)` 返回实体数组。通过 `swSolidBody` 与 `swSheetBody` 分开取数，`false` 包含隐藏体。将固体数组交给 `SelectedItems`，使用系统单位，重新计算质量属性。体积为 m³，面积为 m²，质量为 kg，密度为 kg/m³。显示 cm³ 时乘以 1,000,000。
+- `GetBodies2(int, bool)` 返回实体数组。通过 `swSolidBody` 与 `swSheetBody` 分开取数，`false` 包含隐藏体。体积与面积优先按实体读取，质量属性对象用于材料已知的单实体及几何度量回退。体积为 m³，面积为 m²，质量为 kg，密度为 kg/m³。显示 cm³ 时乘以 1,000,000。
 - `GetMaterialPropertyName2` 返回指定配置的零件级材料名，数据库名称通过输出参数返回。质量覆盖选项仅对单个对象可用，无法确认时质量留为待复核。现场需验证无材料、覆盖质量、实体级材料等用例。
 - Utilities 使用 `GetAddInObject("Utilities.UtilitiesApp")`，按官方示例以 `gtSwToolGeomDiff` 调用 `GetToolInterface`，记录返回错误码并查询 `ICompareGeometry`。仅在接口和方法元数据存在时报告取得能力；阶段 0 未调用需要两个文件的比较方法。 [2025 官方示例](https://help.solidworks.com/2025/English/api/swutilitiesapi/Set_Tolerances_and_Compare_Geometry_VBNET.htm) · [2026 IUtilities](https://help.solidworks.com/2026/english/api/swutilitiesapi/SolidWorks.Interop.gtswutilities~SolidWorks.Interop.gtswutilities.IUtilities_members.html) · [CompareGeometry3](https://help.solidworks.com/2024/english/api/swutilitiesapi/SolidWorks.Interop.gtswutilities~SolidWorks.Interop.gtswutilities.ICompareGeometry~CompareGeometry3.html)
 - `IBody2::Operations2`、布尔差集、误差阈值和模型配准属于后续几何阶段。 [Operations2 官方文档](https://help.solidworks.com/2011/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IBody2~Operations2.html)
@@ -31,7 +31,7 @@ OpenDoc6 的只读告警位保留在诊断和结果中。确认文档确实是�
 
 已打开零件入口使用 `ISldWorks::ActiveDoc` 获取活动文档，`ISldWorks::GetDocuments` 获取会话文档数组，再用 `IPartDoc` 接口和可见性筛选零件。借助 `IModelDoc2::GetSaveFlag()` 记录需保存状态。活动文档只用于识别来源，度量仍来自 `OpenDoc6` 返回的唯一只读副本。 [活动文档](https://help.solidworks.com/2025/english/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.ISldWorks~ActiveDoc.html) · [枚举示例](https://help.solidworks.com/2025/english/api/sldworksapi/get_paths_of_open_documents_example_vb.htm) · [保存标志](https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IModelDoc2~GetSaveFlag.html)
 
-三维观察使用 `IPartDoc::GetTessTriangles(true)` 读取已验证只读副本的显示网格。官方定义的每组三角顶点用浮点米值表示。程序仅在网格可用时绘制相应零件；这个数据不进入几何差异计算或评分。 [SOLIDWORKS 2025 API](https://help.solidworks.com/2025/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IPartDoc~GetTessTriangles.html)
+三维叠加使用 `IPartDoc::GetTessTriangles(true)` 从只读副本读取显示网格，按 `GetTessTriangleCount()` 核对数组长度。每组三个三维顶点均为浮点米值。网格差异在原坐标系用约 0.02 mm 双向距离采样定位，供目视复核。 [GetTessTriangles](https://help.solidworks.com/2024/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IPartDoc~GetTessTriangles.html) · [GetTessTriangleCount](https://help.solidworks.com/2024/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IPartDoc~GetTessTriangleCount.html)
 
 ## 作业配置目录
 
@@ -39,3 +39,14 @@ OpenDoc6 的只读告警位保留在诊断和结果中。确认文档确实是�
 
 - `GetConfigurationNames(string FileName)` 返回含配置名的对象数组。 [2025 API](https://help.solidworks.com/2025/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.ISldWorks~GetConfigurationNames.html) · [2026 API](https://help.solidworks.com/2026/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.ISldWorks~GetConfigurationNames.html)
 - `GetActiveConfigurationName(string FileName)` 返回未打开文件保存的活动配置名称。 [2025 API](https://help.solidworks.com/2025/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.ISldWorks~GetActiveConfigurationName.html) · [2026 API](https://help.solidworks.com/2026/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.ISldWorks~GetActiveConfigurationName.html)
+
+## 结果页关键参数
+
+- `IBody2.GetFaceCount()` 返回实体或曲面体的拓扑面数。分别合计，读取失败保留空值。这个值与显示网格的三角片数独立。 [SOLIDWORKS API](https://help.solidworks.com/2026/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IBody2~GetFaceCount.html)
+- `IBody2.GetMassProperties(double density)` 的固体数组索引 3、4 为体积（m³）及面积（m²）。只使用这两项。依 CAD 返回值核对，必要时回退到原有文档质量属性路径。实际质量仍要求材料和覆盖状态可核实。 [SOLIDWORKS API](https://help.solidworks.com/2024/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IBody2~GetMassProperties.html)
+- `IFeature.GetTypeName2()` 对 Instant3D 返回 `ICE` 时，按文档用 `GetTypeName()` 补读具体操作。保留旧规则可用的 `ICE` 类型。 [SOLIDWORKS API](https://help.solidworks.com/2025/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IFeature~GetTypeName2.html)
+
+
+## 钣金展开
+
+用 `IBody2.IsSheetMetal()` 和当前配置的特征识别钣金。单实体且找到一个 `FlatPattern` 时，在受控只读副本上使用 `IFeature.SetSuppression2` 切换当前配置的平板型式。用 `IModelDoc2.ForceRebuild3` 重建，重新确认配置及压缩状态。折弯、展开网格均从各自状态的实体直接调用 `IBody2.GetTessellation` 计算。以常规关闭路径丢弃副本内的切换。 [钣金实体 API](https://help.solidworks.com/2025/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IBody2~IsSheetMetal.html) · [压缩状态 API](https://help.solidworks.com/2023/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IFeature~SetSuppression2.html) · [实体网格 API](https://help.solidworks.com/2025/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IBody2~GetTessellation.html) · [关闭副本 API](https://help.solidworks.com/2024/english/api/sldworksapi/solidworks.interop.sldworks~solidworks.interop.sldworks.isldworks~closedoc.html)

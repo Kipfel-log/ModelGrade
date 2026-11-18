@@ -22,6 +22,7 @@ namespace SWGrade.Desktop
     internal sealed class TeacherViewModel : INotifyPropertyChanged, IDisposable
     {
         private readonly Window owner;
+        private readonly NotificationCenter notices;
         private readonly string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "SWGrade", "Teacher");
         private SqliteGradeStore store;
@@ -31,12 +32,11 @@ namespace SWGrade.Desktop
         private SubmissionRow selected;
         private RulesDraft draft = new RulesDraft();
         private bool isBusy;
-        private bool hasStatusError;
         private bool isBatch;
         private bool preflightPassed;
         private bool pauseRequested;
         private bool cancelRequested;
-        private string status = "正在打开本地作业。";
+        private string activity = "";
         private string precheck = "";
         private int workspaceTab;
         private int detailTab;
@@ -45,10 +45,11 @@ namespace SWGrade.Desktop
         private string reviewScore;
         private string reviewReason;
 
-        internal TeacherViewModel(Window owner)
+        internal TeacherViewModel(Window owner, NotificationCenter notices)
         {
             this.owner = owner;
-            ReopenCommand = Command(OpenStore, () => store == null);
+            this.notices = notices;
+            ReopenCommand = Command(() => OpenStore(showSuccess: true), () => store == null);
             OpenFolderCommand = Command(() => Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true }),
                 () => store != null);
             NewDraftCommand = Command(() => { Draft = new RulesDraft(); WorkspaceTab = 1; }, () => CanEdit);
@@ -88,8 +89,8 @@ namespace SWGrade.Desktop
         public event PropertyChangedEventHandler PropertyChanged;
         public ObservableCollection<Assignment> Jobs { get; } = new ObservableCollection<Assignment>();
         public ObservableCollection<SubmissionRow> Rows { get; } = new ObservableCollection<SubmissionRow>();
+        public SheetMetalOption[] SheetMetalOptions => SheetMetalOption.Choices;
         public string[] CadYears { get; } = new[] { "自动识别", "2025", "2026" };
-        public string[] Modes { get; } = new[] { "结果优先", "指定过程" };
         public string[] GeometryPolicies { get; } = new[] { "通过 / 不通过", "分档", "教师复核" };
 
         public ICommand ReopenCommand { get; }
@@ -183,8 +184,7 @@ namespace SWGrade.Desktop
             }
         }
 
-        public bool HasStatusError { get => hasStatusError; private set { hasStatusError = value; Notify(); } }
-        public string Status { get => status; private set { status = value; Notify(); } }
+        public string Activity { get => activity; private set { activity = value; Notify(); } }
         public string Precheck { get => precheck; private set { precheck = value; Notify(); } }
         public int WorkspaceTab
         {
@@ -196,10 +196,12 @@ namespace SWGrade.Desktop
                 workspaceTab = value;
                 Notify();
                 Notify(nameof(WorkspaceHeading));
+                Notify(nameof(IsBatchPage));
                 Notify(nameof(WorkspaceDescription));
             }
         }
 
+        public bool IsBatchPage => WorkspaceTab == 0;
         public string WorkspaceHeading => WorkspaceTab == 1 ? "作业管理" : "批量批改";
         public string WorkspaceDescription => WorkspaceTab == 1
             ? "选择标准模型，设置评分规则并保存作业。"
@@ -286,9 +288,10 @@ namespace SWGrade.Desktop
             WorkspaceTab = 0;
         }
 
-        internal void ShowCloseMessage() => Status = "请等待当前文件及记录保存完成。连续批改可先请求暂停。";
+        internal void ShowCloseMessage() =>
+            notices.Publish("作业还在处理", "请等待当前文件及记录保存完成。连续批改可先请求暂停。", NoticeKind.Warning);
 
-        private void OpenStore()
+        private void OpenStore(bool showSuccess = false)
         {
             try
             {
@@ -300,14 +303,17 @@ namespace SWGrade.Desktop
                 foreach (var job in store.LoadAssignments())
                     Jobs.Add(job);
                 Current = Jobs.FirstOrDefault();
-                Status = interrupted == 0 ? "本地作业已打开。" : $"发现 {interrupted} 份上次中断的提交，可选择重试。";
+                if (interrupted > 0)
+                    notices.Publish("发现中断的提交", $"有 {interrupted} 份上次中断的提交，可选择重试。", NoticeKind.Warning);
+                else if (showSuccess)
+                    notices.Publish("本地作业", "本地作业已打开。");
             }
             catch (Exception exception)
             {
-                HasStatusError = true;
                 store?.Dispose();
                 store = null;
-                Status = "无法打开本地作业。请检查目录权限或关闭另一个 SWGrade 实例。 " + exception.Message;
+                Trace.TraceWarning(CadAnalysis.DescribeError(exception));
+                notices.Publish("无法打开本地作业", "请检查目录权限或关闭另一个 SWGrade 实例。", NoticeKind.Error);
             }
             Notify(nameof(CanEdit));
             CommandManager.InvalidateRequerySuggested();
@@ -332,12 +338,11 @@ namespace SWGrade.Desktop
 
         private async Task ChooseOpenStandardAsync()
         {
-            Status = "正在查询 SOLIDWORKS 打开的零件…";
+            Activity = "正在查询 SOLIDWORKS 打开的零件…";
             string year = Draft.CadYear == "自动识别" ? null : Draft.CadYear;
             var selected = await OpenPartPicker.PickAsync(owner, year, null);
             if (selected == null)
             {
-                Status = "已取消选择标准件。";
                 return;
             }
 
@@ -352,19 +357,19 @@ namespace SWGrade.Desktop
             string preferred = draftToRead.StandardConfiguration;
             string year = draftToRead.ExpectedYear;
             draftToRead.ConfigurationStatus = "正在读取标准模型的已保存配置…";
-            Status = "正在读取标准模型配置。";
+            Activity = "正在读取标准模型配置。";
             try
             {
                 var catalog = await StaWorker.Run(() => CadAnalysis.ReadConfigurations(path, year, null));
                 draftToRead.SetConfigurations(catalog, preferred);
-                Status = "标准模型配置已读取。";
+                notices.Publish(WorkspaceHeading, "标准模型配置已读取。");
             }
             catch (Exception exception)
             {
                 draftToRead.ConfigurationStatus = "暂时无法列出配置。请启动 SOLIDWORKS 或检查文件后重试。" +
                     (string.IsNullOrWhiteSpace(preferred) ? "可先保存作业，预检时使用文件的活动配置。" : "已保留原作业的选择。");
-                HasStatusError = true;
-                Status = CadAnalysis.DescribeError(exception);
+                Trace.TraceWarning("标准件配置读取失败：" + CadAnalysis.DescribeError(exception));
+                notices.Publish("标准模型配置未读取", draftToRead.ConfigurationStatus, NoticeKind.Warning);
             }
         }
 
@@ -379,20 +384,23 @@ namespace SWGrade.Desktop
 
             batch.SetStudentConfiguration(item, options, dialog.SelectedConfiguration);
             UpdateRow(item);
-            Status = "已指定这个学生的配置。点击开始／继续队列重新批改。";
+            notices.Publish(WorkspaceHeading, "已指定这个学生的配置。点击开始／继续队列重新批改。");
         }
 
         private async Task SaveAssignmentAsync()
         {
-            var rules = Draft.ToRules();
+            if (string.IsNullOrWhiteSpace(Draft.StandardPath))
+                throw new ArgumentException("请先选择一份用于批改的标准件。");
+            var rules = Draft.ToRules(acceptReview: true);
             var name = Draft.Name;
             var standardPath = Draft.StandardPath;
             string configurationHash = Draft.ConfigurationFileHash;
+            Activity = "正在保存作业…";
             var assignment = await Task.Run(() => assignments.Create(name, standardPath, rules, configurationHash));
             Jobs.Insert(0, assignment);
             Current = assignment;
             WorkspaceTab = 0;
-            Status = "作业规则快照已保存。";
+            notices.Publish("已保存作业", "作业规则快照已保存。");
         }
 
         private async Task PrecheckAsync()
@@ -401,12 +409,13 @@ namespace SWGrade.Desktop
             preflightPassed = false;
             Notify(nameof(StandardSummary));
             DetailTab = 2;
-            Status = "正在预检标准件。";
+            Activity = "正在预检标准件。";
             var progress = new Progress<string>(message => Precheck += message + Environment.NewLine);
             var model = await batch.InspectReferenceAsync(Current, message => ((IProgress<string>)progress).Report(message));
             preflightPassed = true;
             Notify(nameof(StandardSummary));
-            Status = $"标准件已读取，配置 {model.Configuration}，体积 {ReportExporter.Measurement(model.VolumeM3, "m³")}。";
+            notices.Publish("标准件预检完成",
+                $"配置 {model.Configuration}，体积 {ReportExporter.Measurement(model.VolumeM3, "m³")}。");
         }
 
         private async Task ChooseFilesAsync()
@@ -431,28 +440,29 @@ namespace SWGrade.Desktop
 
         private async Task ImportOpenPartAsync()
         {
-            Status = "正在查询 SOLIDWORKS 打开的零件…";
+            Activity = "正在查询 SOLIDWORKS 打开的零件…";
             var selected = await OpenPartPicker.PickAsync(owner, Current.Rules.ExpectedCadYear, null);
             if (selected == null)
             {
-                Status = "已取消导入。";
                 return;
             }
 
-            await ImportAsync(() => new[] { selected.Path });
-            if (selected.NeedsSave)
-                Status += " CAD 标记文档需保存，本次导入磁盘版本。";
+            await ImportAsync(() => new[] { selected.Path }, selected.NeedsSave);
         }
 
-        private async Task ImportAsync(Func<IEnumerable<string>> files)
+        private async Task ImportAsync(Func<IEnumerable<string>> files, bool savedVersionOnly = false)
         {
             var job = Current;
-            Status = "正在检查并导入零件。";
+            Activity = "正在检查并导入零件。";
             var imported = await Task.Run(() => assignments.Import(job, files()));
             ReloadRows();
             int messages = imported.Count(item => item.ImportNotice != null);
-            Status = imported.Count == 0 ? "所选位置没有可导入的 .SLDPRT。" :
+            string message = imported.Count == 0 ? "所选位置没有可导入的 .SLDPRT。" :
                 $"已导入 {imported.Count} 份。 {messages} 份有重复或读取提示。";
+            if (savedVersionOnly)
+                message += " CAD 标记文档需保存，本次导入磁盘版本。";
+            notices.Publish("导入零件", message,
+                imported.Count == 0 || savedVersionOnly ? NoticeKind.Warning : NoticeKind.Information);
         }
 
         private async Task RunBatchAsync()
@@ -461,14 +471,14 @@ namespace SWGrade.Desktop
             pauseRequested = cancelRequested = false;
             Precheck = "";
             DetailTab = 2;
-            Status = "正在读取标准件并准备批改。";
+            Activity = "正在读取标准件并准备批改。";
             var progress = new Progress<string>(message => Precheck += message + Environment.NewLine);
             CommandManager.InvalidateRequerySuggested();
             try
             {
                 var end = await batch.RunAsync(Current, UpdateRow, message => ((IProgress<string>)progress).Report(message));
-                Status = end == BatchEnd.Paused ? "已在文件之间暂停，可继续。" :
-                    end == BatchEnd.Canceled ? "剩余任务已取消。已处理结果已保留。" : "本轮队列执行完毕。";
+                notices.Publish("批改队列", end == BatchEnd.Paused ? "已在文件之间暂停，可继续。" :
+                    end == BatchEnd.Canceled ? "剩余任务已取消。已处理结果已保留。" : "本轮队列执行完毕。");
             }
             catch
             {
@@ -487,7 +497,7 @@ namespace SWGrade.Desktop
         {
             batch.RequestPause();
             pauseRequested = true;
-            Status = "将在当前文件完成后暂停。";
+            Activity = "将在当前文件完成后暂停。";
             CommandManager.InvalidateRequerySuggested();
         }
 
@@ -497,12 +507,12 @@ namespace SWGrade.Desktop
             {
                 batch.RequestCancel();
                 cancelRequested = true;
-                Status = "将在当前文件完成后取消剩余任务。";
+                Activity = "将在当前文件完成后取消剩余任务。";
             }
             else
             {
                 batch.CancelPending(Current.Id, UpdateRow);
-                Status = "待处理任务已取消。";
+                notices.Publish(WorkspaceHeading, "待处理任务已取消。");
             }
             CommandManager.InvalidateRequerySuggested();
         }
@@ -512,7 +522,7 @@ namespace SWGrade.Desktop
             var item = LoadSelected();
             batch.ResetForRetry(item);
             UpdateRow(item);
-            Status = "提交已加入队列，点「开始 / 继续」执行。";
+            notices.Publish(WorkspaceHeading, "提交已加入队列，点「开始 / 继续」执行。");
         }
 
         private void SaveStudent()
@@ -522,7 +532,7 @@ namespace SWGrade.Desktop
             item.StudentName = StudentName?.Trim();
             store.SaveSubmission(item);
             UpdateRow(item);
-            Status = "学生信息已保存。";
+            notices.Publish(WorkspaceHeading, "学生信息已保存。");
         }
 
         private void SaveReview()
@@ -532,7 +542,7 @@ namespace SWGrade.Desktop
             store.SaveSubmission(item);
             UpdateRow(item);
             ReviewReason = "";
-            Status = "教师终评及原因已记录。";
+            notices.Publish(WorkspaceHeading, "教师终评及原因已记录。");
         }
 
         private Submission LoadSelected() =>
@@ -544,7 +554,7 @@ namespace SWGrade.Desktop
             if (path == null)
                 return;
             ReportExporter.SaveCsv(path, Current, Rows.Select(row => row.Item));
-            Status = "班级成绩 CSV 已导出。";
+            notices.Publish(WorkspaceHeading, "班级成绩 CSV 已导出。");
         }
 
         private void ExportHtml()
@@ -553,7 +563,7 @@ namespace SWGrade.Desktop
             if (path == null)
                 return;
             ReportExporter.SaveHtml(path, Current, Selected.Item);
-            Status = "单件 HTML 已导出。";
+            notices.Publish(WorkspaceHeading, "单件 HTML 已导出。");
         }
 
         private string ReportPath(string extension, string kind)
@@ -620,17 +630,17 @@ namespace SWGrade.Desktop
 
         private async Task WithBusyAsync(Func<Task> action)
         {
-            HasStatusError = false;
             IsBusy = true;
             try { await action(); }
             catch (Exception exception)
             {
-                HasStatusError = true;
-                Status = CadAnalysis.DescribeError(exception);
-                if (isBatch)
-                    DetailTab = 2;
+                PublishFailure(exception);
             }
-            finally { IsBusy = false; }
+            finally
+            {
+                Activity = "";
+                IsBusy = false;
+            }
         }
 
         private ICommand Command(Action action, Func<bool> canExecute) =>
@@ -638,13 +648,15 @@ namespace SWGrade.Desktop
 
         private void ExecuteSafely(Action action)
         {
-            HasStatusError = false;
             try { action(); }
-            catch (Exception exception)
-            {
-                HasStatusError = true;
-                Status = CadAnalysis.DescribeError(exception);
-            }
+            catch (Exception exception) { PublishFailure(exception); }
+        }
+
+        private void PublishFailure(Exception exception)
+        {
+            var detail = CadAnalysis.DescribeError(exception);
+            Trace.TraceWarning(detail);
+            notices.Publish(WorkspaceHeading + "操作失败", exception is ArgumentException ? exception.Message : detail, NoticeKind.Error);
         }
 
         private void Notify([CallerMemberName] string name = null) =>
@@ -657,10 +669,11 @@ namespace SWGrade.Desktop
             public Task<PartConfigurations> ReadConfigurationsAsync(string path, string cadYear, Action<string> report) =>
                 StaWorker.Run(() => CadAnalysis.ReadConfigurations(path, cadYear, report));
 
-            public Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report) =>
+            public Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report,
+                SheetMetalMode sheetMetal = SheetMetalMode.Automatic) =>
                 StaWorker.Run(() =>
                 {
-                    try { return CadAnalysis.Run(path, configuration, cadYear, false, report); }
+                    try { return CadAnalysis.Run(path, configuration, cadYear, false, report, sheetMetal); }
                     catch (Exception exception)
                     {
                         throw new InvalidOperationException(CadAnalysis.DescribeError(exception), exception);

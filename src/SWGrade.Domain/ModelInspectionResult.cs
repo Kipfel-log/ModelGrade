@@ -54,6 +54,15 @@ namespace SWGrade.Domain
         [DataMember(Name = "surfaceBodyCount")]
         public int SurfaceBodyCount { get; internal set; }
 
+        [DataMember(Name = "sheetMetal", EmitDefaultValue = false)]
+        public SheetMetalInspection SheetMetal { get; internal set; }
+
+        [DataMember(Name = "solidFaceCount", EmitDefaultValue = false)]
+        public int? SolidFaceCount { get; internal set; }
+
+        [DataMember(Name = "surfaceFaceCount", EmitDefaultValue = false)]
+        public int? SurfaceFaceCount { get; internal set; }
+
         [DataMember(Name = "volumeM3")]
         public double? VolumeM3 { get; internal set; }
 
@@ -76,6 +85,13 @@ namespace SWGrade.Domain
 
         [DataMember(Name = "activeFeatureTypes")]
         internal Dictionary<string, int> ActiveFeatureCounts { get; private set; } = new Dictionary<string, int>();
+
+        public IReadOnlyDictionary<string, int> ActiveFeatureTypes => ActiveFeatureCounts;
+
+        public bool FeatureCountsComplete => FeatureTraversalComplete;
+
+        public bool IsActiveFeatureCountVerified(string type) =>
+            FeatureTraversalComplete && UnverifiedFeatureTypes?.Contains(type) == false;
 
         [DataMember(Name = "unverifiedFeatureTypes")]
         internal HashSet<string> UnverifiedFeatureTypes { get; private set; } = new HashSet<string>();

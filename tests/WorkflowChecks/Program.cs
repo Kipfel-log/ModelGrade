@@ -17,8 +17,13 @@ namespace SWGrade.WorkflowChecks
         private static async Task Main()
         {
             Console.WriteLine("MOCK TEST ONLY. This run contains no CAD reads, real part measurements, or live grades.");
+            CheckNotifications();
             CheckRules();
+            CheckSnapshotAndTrial();
+            CheckSheetMetalRules();
+            CheckMeshPreview();
             CheckAssignmentDraft();
+            CheckSimpleAssignment();
             var root = Directory.CreateTempSubdirectory("swgrade-workflow-");
             try
             {
@@ -29,6 +34,34 @@ namespace SWGrade.WorkflowChecks
             {
                 root.Delete(true);
             }
+        }
+
+        private static void CheckNotifications()
+        {
+            var now = new DateTimeOffset(2026, 11, 18, 14, 0, 0, TimeSpan.Zero);
+            var notices = new NotificationCenter(() => now);
+            notices.Publish("作业管理操作失败", "请先选择标准件。", NoticeKind.Error);
+            var first = notices.Items.Single();
+            now = now.AddSeconds(2);
+            notices.Publish(first.Title, first.Message, NoticeKind.Error);
+            var repeated = notices.Items.Last();
+            Check(notices.Items.Count == 2 && !ReferenceEquals(first, repeated) &&
+                notices.Items[0].CreatedAt < repeated.CreatedAt && first.DisplayTime != repeated.DisplayTime,
+                "identical repeated failure appends its own dated entry");
+
+            notices.Dismiss(first);
+            Check(notices.Items.SequenceEqual(new[] { repeated }), "dismissing a card leaves later occurrences intact");
+            notices.Publish("连接检测", "当前无连接。", NoticeKind.Warning);
+            notices.Publish("已复制", "分析结果已复制。");
+            now = now.AddSeconds(7);
+            notices.RemoveExpired();
+            Check(notices.Items.Count == 2 && notices.Items[0] == repeated && notices.Items[1].Kind == NoticeKind.Warning,
+                "informational feedback expires and warnings and errors stay until dismissed");
+            notices.Clear();
+            Check(notices.Items.Count == 0, "clear all removes currently displayed notices");
+            notices.Publish(first.Title, first.Message, NoticeKind.Error);
+            Check(notices.Items.Count == 1 && notices.Items[0] != first && notices.Items[0] != repeated,
+                "fresh failure can appear after clearing notifications");
         }
 
         private static void CheckRules()
@@ -99,6 +132,122 @@ namespace SWGrade.WorkflowChecks
             Check(engine.Evaluate(rules, null, null, null).EvaluatedPoints == 0, "empty inspections withheld");
         }
 
+        private static void CheckSnapshotAndTrial()
+        {
+            string hash = new string('a', 64);
+            var reference = Model(hash, "A");
+            var current = Model(hash, "A");
+            reference.SolidFaceCount = current.SolidFaceCount = 6;
+            var evidence = SavedGeometry.CompareIdenticalSnapshot(reference, current);
+            Check(evidence.ValidatedComparison && evidence.MissingVolumeM3 == 0 && evidence.ExtraVolumeM3 == 0,
+                "verified same snapshot and configuration give exact geometry evidence");
+
+            var assignment = new Assignment { StandardHash = hash, Rules = new AssignmentRules { StandardConfiguration = "A" } };
+            var trial = TrialGrading.Evaluate(assignment, reference, current);
+            var grade = new GradingEngine().Evaluate(assignment.Rules, reference, current, evidence);
+            Check(trial.EarnedPoints == 85 && trial.ReviewPoints == 15 && trial.FinalAutoScore == null &&
+                trial.Checks.Select(check => check.Awarded).SequenceEqual(grade.Checks.Select(check => check.Awarded)),
+                "trial uses saved weights, verified evidence and the batch engine together");
+            Check(ModelComparison.Evaluate(reference, current, null, null).Checks.Single(check => check.Name == "实体面数")
+                .Status == CheckStatus.NotApplicable, "face count is a topology observation without scoring");
+
+            current.DocumentHash = new string('b', 64);
+            trial = TrialGrading.Evaluate(assignment, reference, current);
+            Check(!trial.Geometry.ValidatedComparison && trial.EarnedPoints == 25 &&
+                trial.ReviewPoints == 75 && trial.FinalAutoScore == null, "equal volume and area do not prove geometry for different files");
+            Expect<InvalidOperationException>(() => TrialGrading.Evaluate(assignment, current, reference),
+                "trial rejects the wrong standard even when its measurements match");
+
+            current.DocumentHash = hash;
+            current.Configuration = "B";
+            Check(!SavedGeometry.CompareIdenticalSnapshot(reference, current).ValidatedComparison,
+                "same file with another configuration does not prove geometry");
+            Expect<InvalidOperationException>(() => TrialGrading.Evaluate(assignment, reference, current),
+                "trial asks for the saved student configuration");
+            current.Configuration = "A";
+            current.ReviewOpenWarningCode = 32;
+            Check(!SavedGeometry.CompareIdenticalSnapshot(reference, current).ValidatedComparison,
+                "rebuild warning prevents exact-match geometry evidence");
+            current.ReviewOpenWarningCode = 0;
+            current.SolidBodyCount = 2;
+            Check(!SavedGeometry.CompareIdenticalSnapshot(reference, current).ValidatedComparison,
+                "identical-snapshot proof is limited to a single solid");
+        }
+
+        private static void CheckSheetMetalRules()
+        {
+            string hash = new string('c', 64);
+            var reference = Model(hash, "A");
+            var student = Model(hash, "A");
+            var rules = new AssignmentRules { GeometryWeight = 60, ParametersWeight = 40, FeaturesWeight = 0 };
+            var engine = new GradingEngine();
+            GradeResult Grade() => engine.Evaluate(rules, reference, student,
+                SavedGeometry.CompareIdenticalSnapshot(reference, student));
+
+            Check(Grade().Checks.All(check => check.Name != "钣金展开图") && Grade().FinalAutoScore == 100,
+                "automatic mode leaves ordinary parts on the normal grading path");
+            rules.SheetMetal = SheetMetalMode.RequireFlatPattern;
+            Check(Grade().Checks.Single(check => check.Name == "钣金展开图").Status == CheckStatus.Unverified &&
+                Grade().FinalAutoScore == null, "manual sheet-metal mode requires flat pattern evidence");
+            rules.SheetMetal = SheetMetalMode.Automatic;
+            reference.SheetMetal = new SheetMetalInspection
+                { Detected = true, FoldedVerified = true, FlatVolumeM3 = 1, FlatSurfaceAreaM2 = 6 };
+            student.SheetMetal = new SheetMetalInspection { Detected = true, FoldedVerified = false };
+            Check(Grade().EvaluatedPoints == 0, "automatic detected sheet metal with unknown folded state leaves dimensions for review");
+            student.SheetMetal.FoldedVerified = true;
+            student.SheetMetal.FlatVolumeM3 = 1;
+            student.SheetMetal.FlatSurfaceAreaM2 = 6;
+            Check(Grade().FinalAutoScore == 100 && Grade().Checks.Single(check => check.Name == "钣金展开图").Status == CheckStatus.Pass,
+                "same validated sheet snapshot receives geometry points after both flat reads");
+
+            student.DocumentHash = new string('d', 64);
+            Check(Grade().FinalAutoScore == null && Grade().ReviewPoints == 60 &&
+                Grade().Checks.Single(check => check.Name == "钣金展开图").Status == CheckStatus.Unverified,
+                "same flat area on different file contents does not prove equivalent outline or holes");
+            student.SheetMetal.FlatSurfaceAreaM2 = 8;
+            Check(Grade().FinalAutoScore == 40 &&
+                Grade().Checks.Single(check => check.Name == "钣金展开图").Status == CheckStatus.Fail,
+                "measured flat area outside tolerance fails the combined geometry check");
+            rules.GeometryWeight = 0;
+            rules.ParametersWeight = 100;
+            Check(Grade().FinalAutoScore == null, "required flat check cannot be skipped for a final grade with zero geometry weight");
+
+            rules.SheetMetal = SheetMetalMode.StandardPart;
+            Check(Grade().FinalAutoScore == 100 && Grade().Checks.All(check => check.Name != "钣金展开图"),
+                "manual ordinary-part mode intentionally omits the sheet requirement");
+            var draft = RulesDraft.FromAssignment(new Assignment { Rules = rules });
+            Check(draft.ToRules(acceptReview: true).SheetMetal == SheetMetalMode.StandardPart,
+                "saved sheet recognition mode survives assignment reuse");
+        }
+
+        private static void CheckMeshPreview()
+        {
+            // Synthetic planar data in metres, independent of CAD.
+            float[] reference = { 0, 0, 0, 0.01f, 0, 0, 0.01f, 0.01f, 0, 0, 0, 0, 0.01f, 0.01f, 0, 0, 0.01f, 0 };
+            float[] otherDiagonal = { 0, 0, 0, 0.01f, 0, 0, 0, 0.01f, 0, 0.01f, 0, 0, 0.01f, 0.01f, 0, 0, 0.01f, 0 };
+            var mesh = SurfacePreview.Prepare(reference, otherDiagonal);
+            Check(mesh.Compared && mesh.Shared.Length == reference.Length && mesh.CurrentOnly.Length == 0 && mesh.ReferenceOnly.Length == 0,
+                "flat face with another triangulation is drawn once in overlay");
+            var shifted = (float[])otherDiagonal.Clone();
+            for (var i = 2; i < shifted.Length; i += 3)
+                shifted[i] = 0.005f;
+            mesh = SurfacePreview.Prepare(reference, shifted);
+            Check(mesh.Compared && mesh.Shared.Length == 0 && mesh.CurrentOnly.Length == shifted.Length &&
+                mesh.ReferenceOnly.Length == reference.Length, "translated display surfaces remain distinct in their original axes");
+
+            var extra = (float[])shifted.Take(9).ToArray();
+            var changed = reference.Concat(extra).ToArray();
+            mesh = SurfacePreview.Prepare(reference, changed);
+            Check(mesh.Shared.Length == reference.Length && mesh.CurrentOnly.SequenceEqual(extra) && mesh.ReferenceOnly.Length == 0,
+                "overlay isolates added display triangles with their original positions");
+            var reversedFirst = reference.Skip(6).Take(3).Concat(reference.Skip(3).Take(3)).Concat(reference.Take(3));
+            var duplicates = reference.Concat(reversedFirst).Concat(new float[9]).ToArray();
+            mesh = SurfacePreview.Prepare(reference, duplicates);
+            Check(mesh.Current.Length == reference.Length && mesh.Shared.Length == reference.Length,
+                "renderer filters reversed coincident duplicates and degenerate triangles");
+            Check(!SurfacePreview.Prepare(reference, null).Compared, "missing display mesh leaves overlay unavailable");
+        }
+
         private static void CheckComparison(ModelInspectionResult reference, ModelInspectionResult current)
         {
             current.VolumeM3 = 2;
@@ -127,7 +276,7 @@ namespace SWGrade.WorkflowChecks
 
         private static void CheckAssignmentDraft()
         {
-            var draft = new RulesDraft();
+            var draft = RulesDraft.FromAssignment(new Assignment { Rules = new AssignmentRules() });
             Check(draft.Preset == "标准" && draft.Volume.Relative.Text == "0.1" && draft.Volume.Absolute.Text == "0.001" &&
                 draft.Area.Absolute.Text == "0.01" && draft.Mass.Absolute.Text == "0.001", "assignment displays percentages and engineering units");
             Expect<ArgumentException>(() => draft.ToRules(), "teacher confirmation required for unavailable points");
@@ -188,6 +337,40 @@ namespace SWGrade.WorkflowChecks
             var reusedRules = reused.ToRules();
             Check(reusedRules.StandardConfiguration == "Legacy" && reusedRules.StudentConfiguration == "Mapped" &&
                 reusedRules.VolumeTolerance.Absolute == oldRules.VolumeTolerance.Absolute, "offline draft preserves legacy configuration and precise tolerance");
+        }
+
+        private static void CheckSimpleAssignment()
+        {
+            var draft = new RulesDraft();
+            draft.ChangeStandard("支架.SLDPRT");
+            var rules = draft.ToRules(acceptReview: true);
+            Check(draft.Name == "支架" && draft.SaveLabel.Contains("待复核") &&
+                rules.Mode == GradingMode.GeometryFirst && rules.GeometryWeight == 60 &&
+                rules.ParametersWeight == 40 && rules.FeaturesWeight == 0 && !rules.CheckMass && !rules.CheckMaterial,
+                "selecting standard alone gives a valid result-first draft with no unconfigured feature weight");
+            draft.CheckProcess = true;
+            Expect<ArgumentException>(() => draft.ToRules(acceptReview: true),
+                "process draft asks for an operation before save");
+            draft.FeatureChoices.Single(choice => choice.Label == "圆角").Selected = true;
+            rules = draft.ToRules(acceptReview: true);
+            Check(rules.Mode == GradingMode.ProcessRequired && rules.GeometryWeight == 60 && rules.ParametersWeight == 25 &&
+                rules.FeaturesWeight == 15 && rules.RequiredFeatureTypes.SequenceEqual(new[] { "Fillet" }),
+                "selecting a named operation configures real process weights and the CAD type");
+            draft.FeatureTypes += "\nOther";
+            draft.FeatureChoices.Single(choice => choice.Label == "圆角").Selected = false;
+            Check(draft.FeatureTypes == "Other", "simple checkboxes and custom operation names share the same rule");
+            draft.CheckProcess = false;
+            rules = draft.ToRules(acceptReview: true);
+            Check(rules.Mode == GradingMode.GeometryFirst && rules.FeaturesWeight == 0 && rules.ParametersWeight == 40,
+                "turning off process grading returns those points to parameter grading");
+
+            var legacy = new AssignmentRules { Mode = GradingMode.GeometryFirst };
+            legacy.RequiredFeatureTypes.Add("Cut");
+            var reused = RulesDraft.FromAssignment(new Assignment { Rules = legacy });
+            rules = reused.ToRules(acceptReview: true);
+            Check(reused.CheckProcess && rules.Mode == legacy.Mode &&
+                rules.ParametersWeight == legacy.ParametersWeight && rules.FeaturesWeight == legacy.FeaturesWeight,
+                "reusing a saved rule preserves its mode and weights until the teacher edits them");
         }
 
         private static bool Close(double actual, double expected) => Math.Abs(actual - expected) <= 1e-14 * Math.Abs(expected);
@@ -400,7 +583,8 @@ namespace SWGrade.WorkflowChecks
                 return Task.FromResult(new PartConfigurations(PartFiles.Hash(path), name, new[] { name }));
             }
 
-            public Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report)
+            public Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report,
+                SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
             {
                 report?.Invoke("MOCK only");
                 string name = Path.GetFileNameWithoutExtension(path);

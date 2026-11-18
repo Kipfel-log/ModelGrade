@@ -25,7 +25,7 @@ namespace SWGrade.Domain
         public IReadOnlyList<GradeCheck> Checks => Evidence;
 
         public static ModelComparison Evaluate(ModelInspectionResult reference, ModelInspectionResult current,
-            string referenceConfiguration, string currentConfiguration)
+            string referenceConfiguration, string currentConfiguration, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
         {
             if (reference == null)
                 throw new ArgumentNullException(nameof(reference));
@@ -47,6 +47,7 @@ namespace SWGrade.Domain
             report.AddMeasurement("质量", "kg", reference.MassKg, current.MassKg, rules.MassTolerance, problem);
             report.AddMeasurement("实体数量", "个", reference.SolidBodyCount, current.SolidBodyCount, new MeasurementTolerance(), problem);
             report.AddMeasurement("曲面体数量", "个", reference.SurfaceBodyCount, current.SurfaceBodyCount, new MeasurementTolerance(), problem);
+            report.AddObservation("实体面数", reference.SolidFaceCount, current.SolidFaceCount);
 
             if (problem == null && !string.IsNullOrWhiteSpace(reference.MaterialName) && !string.IsNullOrWhiteSpace(current.MaterialName))
             {
@@ -63,7 +64,12 @@ namespace SWGrade.Domain
                 report.Evidence.Add(Review("零件级材料", problem ?? "至少一个零件未取得零件级材料。"));
             }
 
-            report.Evidence.Add(Review("几何差异", "尚无经过真机验证的几何差异证据。"));
+            var geometry = SavedGeometry.CompareIdenticalSnapshot(reference, current);
+            report.Evidence.Add(geometry.ValidatedComparison && problem == null
+                ? new GradeCheck { Name = "几何差异", Status = CheckStatus.Pass, Reason = geometry.Reason }
+                : Review("几何差异", geometry.Reason));
+            if (SheetMetalComparison.Required(sheetMetal, reference, current, adHoc: true))
+                report.Evidence.Add(SheetMetalComparison.Check(rules, reference, current, problem));
             return report;
         }
 
@@ -85,6 +91,19 @@ namespace SWGrade.Domain
                     ? CheckStatus.Pass : CheckStatus.Fail;
             }
             Evidence.Add(check);
+        }
+
+        private void AddObservation(string name, int? reference, int? current)
+        {
+            Evidence.Add(new GradeCheck
+            {
+                Name = name,
+                Unit = "个",
+                StandardValue = reference,
+                StudentValue = current,
+                Status = CheckStatus.NotApplicable,
+                Reason = "面数用于核对拓扑。同一种形状可以有不同的面数。"
+            });
         }
 
         private static GradeCheck Review(string name, string reason) =>

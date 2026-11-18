@@ -161,8 +161,8 @@ if ($Page -eq 'Settings') {
 }
 Start-Sleep -Milliseconds 350
 
-if ($Page -eq 'Assignment' -and $null -eq (Find-ById 'StandardConfigurationChoice')) {
-    throw 'The assignment editor or configuration selector is missing.'
+if ($Page -eq 'Assignment' -and $null -eq (Find-ById 'AssignmentName')) {
+    throw 'The assignment editor is missing.'
 }
 if ($Page -eq 'Overview' -or $RunDetection) {
     $detect = Find-ById 'DetectEnvironment'

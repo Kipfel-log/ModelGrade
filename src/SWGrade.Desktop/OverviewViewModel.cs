@@ -28,14 +28,17 @@ namespace SWGrade.Desktop
 
     internal sealed class SettingsViewModel
     {
-        internal SettingsViewModel(AppearanceSettings appearance, ConnectionViewModel connection, TeacherViewModel teacher)
+        internal SettingsViewModel(AppearanceSettings appearance, ConnectionViewModel connection, TeacherViewModel teacher,
+            AnalysisViewModel analysis)
         {
             Appearance = appearance;
             Connection = connection;
+            Analysis = analysis;
             OpenFolderCommand = teacher.OpenFolderCommand;
         }
 
         public AppearanceSettings Appearance { get; }
+        public AnalysisViewModel Analysis { get; }
         public ConnectionViewModel Connection { get; }
         public ICommand OpenFolderCommand { get; }
     }

@@ -36,12 +36,14 @@ namespace SWGrade.Desktop
             appearance.ApplyPalette();
             InitializeComponent();
 
-            connection = new ConnectionViewModel(this);
-            analysis = new AnalysisViewModel(this, () => connection.ExpectedYear);
-            var analyzer = new AnalysisWorkspace { DataContext = analysis };
+            var notices = new NotificationCenter();
+            Notifications.Connect(notices);
+            connection = new ConnectionViewModel(this, notices);
             var workspace = new GradingWorkspace();
-            teacher = workspace.Connect(this);
-            history = new HistoryViewModel(teacher, () => GoTo(BatchIndex));
+            teacher = workspace.Connect(this, notices);
+            analysis = new AnalysisViewModel(this, () => connection.ExpectedYear, teacher.Jobs, notices);
+            var analyzer = new AnalysisWorkspace { DataContext = analysis };
+            history = new HistoryViewModel(teacher, () => GoTo(BatchIndex), notices);
 
             var overview = new OverviewPage
             {
@@ -53,7 +55,7 @@ namespace SWGrade.Desktop
                     () => GoTo(SettingsIndex))
             };
 
-            var settings = new SettingsPage { DataContext = new SettingsViewModel(appearance, connection, teacher) };
+            var settings = new SettingsPage { DataContext = new SettingsViewModel(appearance, connection, teacher, analysis) };
             var records = new HistoryPage { DataContext = history };
             links = new[]
             {
@@ -77,7 +79,7 @@ namespace SWGrade.Desktop
         private async void DetectOnStartup(object sender, RoutedEventArgs args)
         {
             Loaded -= DetectOnStartup;
-            await connection.CheckAsync();
+            await connection.CheckAsync(notify: false);
         }
 
         private void Navigate(object sender, SelectionChangedEventArgs args)

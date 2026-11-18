@@ -19,7 +19,11 @@ namespace SWGrade.Desktop
         private string standardConfiguration;
         private string studentConfiguration;
         private string featureTypes;
-        private string mode;
+        private bool checkProcess;
+        private bool checkMass;
+        private decimal? previousProcessWeight;
+        private GradingMode mode;
+        private string name;
         private string configurationStatus = "选择标准模型后读取配置。";
         private IReadOnlyList<ConfigurationChoice> configurationChoices = Array.Empty<ConfigurationChoice>();
         private bool confirmed;
@@ -29,14 +33,17 @@ namespace SWGrade.Desktop
         private readonly string originalBands;
         private readonly IReadOnlyList<GeometryBand> savedBands;
 
-        internal RulesDraft() : this(new AssignmentRules()) { }
+        internal RulesDraft() : this(new AssignmentRules { ParametersWeight = 40, FeaturesWeight = 0 }) { }
 
         private RulesDraft(AssignmentRules rules)
         {
             standardConfiguration = rules.StandardConfiguration;
             studentConfiguration = rules.StudentConfiguration;
             CadYear = rules.ExpectedCadYear ?? "自动识别";
-            mode = rules.Mode == GradingMode.ProcessRequired ? "指定过程" : "结果优先";
+            mode = rules.Mode;
+            SheetMetal = rules.SheetMetal;
+            checkProcess = mode == GradingMode.ProcessRequired ||
+                (rules.FeaturesWeight > 0 && rules.RequiredFeatureTypes.Count > 0);
             GeometryPolicy = rules.GeometryPolicy == Domain.GeometryPolicy.Bands ? "分档" :
                 rules.GeometryPolicy == Domain.GeometryPolicy.TeacherReview ? "教师复核" : "通过 / 不通过";
             Geometry = new RuleNumber("几何", (double)rules.GeometryWeight, 100, "分");
@@ -52,6 +59,16 @@ namespace SWGrade.Desktop
                 RuleNumber.Format(ToleranceUnits.ToPercent(band.MaximumRatio)) + " " +
                 (band.AwardFraction * 100).ToString("0.############################", CultureInfo.InvariantCulture)));
             featureTypes = string.Join(Environment.NewLine, rules.RequiredFeatureTypes);
+            FeatureChoices = new[]
+            {
+                new FeatureChoice(this, "拉伸凸台", "Boss"),
+                new FeatureChoice(this, "切除拉伸", "Cut"),
+                new FeatureChoice(this, "圆角", "Fillet"),
+                new FeatureChoice(this, "倒角", "Chamfer"),
+                new FeatureChoice(this, "异型孔", "HoleWzd"),
+                new FeatureChoice(this, "钣金基体法兰", "SMBaseFlange"),
+                new FeatureChoice(this, "钣金边线法兰", "EdgeFlange")
+            };
             RequireSingleSolidBody = rules.RequireSingleSolidBody;
             CheckMass = rules.CheckMass;
             CheckMaterial = rules.CheckMaterial;
@@ -64,10 +81,25 @@ namespace SWGrade.Desktop
 
         }
 
-        public string Name { get; set; }
+        public string Name { get => name; set { name = value; Notify(); } }
         internal string ConfigurationFileHash { get; private set; }
-        public string StandardPath { get => standardPath; private set { standardPath = value; Notify(); } }
-        public string StandardConfiguration { get => standardConfiguration; set { standardConfiguration = value; Notify(); } }
+        public string StandardPath
+        {
+            get => standardPath;
+            private set { standardPath = value; Notify(); Notify(nameof(StandardFileName)); }
+        }
+
+        public string StandardFileName => System.IO.Path.GetFileName(StandardPath) ?? "还未选择标准件";
+
+        public string StandardConfiguration
+        {
+            get => standardConfiguration;
+            set { standardConfiguration = value; Notify(); Notify(nameof(StandardConfigurationSummary)); Notify(nameof(HasMultipleConfigurations)); }
+        }
+
+        public string StandardConfigurationSummary => StandardPath == null ? "" :
+            StandardConfiguration != null ? "用于批改的配置：" + StandardConfiguration :
+            ConfigurationFileHash == null ? "默认使用文件的活动配置。" : "请选择用于批改的配置。";
         public string StudentConfiguration
         {
             get => studentConfiguration;
@@ -81,8 +113,11 @@ namespace SWGrade.Desktop
         public IReadOnlyList<ConfigurationChoice> ConfigurationChoices
         {
             get => configurationChoices;
-            private set { configurationChoices = value; Notify(); }
+            private set { configurationChoices = value; Notify(); Notify(nameof(HasMultipleConfigurations)); }
         }
+
+        public bool HasMultipleConfigurations => ConfigurationChoices.Count > 1 ||
+            (ConfigurationChoices.Count == 1 && string.IsNullOrWhiteSpace(StandardConfiguration));
 
         public string ConfigurationStatus
         {
@@ -92,8 +127,37 @@ namespace SWGrade.Desktop
 
         public string CadYear { get; set; }
         public string ExpectedYear => CadYear == "自动识别" ? null : CadYear;
-        public string Mode { get => mode; set { mode = value; Notify(); RefreshWeights(); } }
+        public bool CheckProcess
+        {
+            get => checkProcess;
+            set
+            {
+                if (checkProcess == value)
+                    return;
+                if (Features.TryValue(out var features) && Parameters.TryValue(out var parameters) &&
+                    features >= 0 && parameters >= 0 && parameters + features <= 100)
+                {
+                    if (value && features == 0 && parameters > 0)
+                    {
+                        decimal allocation = Math.Min(parameters, previousProcessWeight ?? 15);
+                        Parameters.Text = (parameters - allocation).ToString(CultureInfo.InvariantCulture);
+                        Features.Text = allocation.ToString(CultureInfo.InvariantCulture);
+                    }
+                    else if (!value && features > 0)
+                    {
+                        previousProcessWeight = features;
+                        Parameters.Text = (parameters + features).ToString(CultureInfo.InvariantCulture);
+                        Features.Text = "0";
+                    }
+                }
+                checkProcess = value;
+                mode = value ? GradingMode.ProcessRequired : GradingMode.GeometryFirst;
+                Notify();
+                RefreshWeights();
+            }
+        }
         public string GeometryPolicy { get; set; }
+        public SheetMetalMode SheetMetal { get; set; }
         public RuleNumber Geometry { get; }
         public RuleNumber Parameters { get; }
         public RuleNumber Features { get; }
@@ -102,9 +166,39 @@ namespace SWGrade.Desktop
         public ToleranceDraft Mass { get; }
         public string GeometryTolerancePercent { get; set; }
         public string Bands { get; set; }
-        public string FeatureTypes { get => featureTypes; set { featureTypes = value; Notify(); RefreshWeights(); } }
+        public IReadOnlyList<FeatureChoice> FeatureChoices { get; }
+
+        public string FeatureTypes
+        {
+            get => featureTypes;
+            set
+            {
+                if (featureTypes == value)
+                    return;
+                featureTypes = value;
+                Notify();
+                foreach (var choice in FeatureChoices)
+                    choice.Refresh();
+                RefreshWeights();
+            }
+        }
+
+        internal bool HasFeature(string key) => FeatureTypeNames().Contains(key, StringComparer.Ordinal);
+        internal void SetFeature(string key, bool selected)
+        {
+            var features = FeatureTypeNames().ToList();
+            if (selected)
+                features.Add(key);
+            else
+                features.RemoveAll(existing => existing == key);
+            FeatureTypes = string.Join(Environment.NewLine, features);
+        }
         public bool RequireSingleSolidBody { get; set; }
-        public bool CheckMass { get; set; }
+        public bool CheckMass
+        {
+            get => checkMass;
+            set { checkMass = value; Notify(); }
+        }
         public bool CheckMaterial { get; set; }
         public string[] Presets { get; } = new[] { "严格", StandardPreset, "宽松", CustomPreset };
 
@@ -134,13 +228,18 @@ namespace SWGrade.Desktop
         private bool GeometryPending => Geometry.TryValue(out var value) && value > 0;
         private bool FeaturesPending => Features.TryValue(out var value) && value > 0 && !FeatureTypeNames().Any();
         public bool HasUnavailableWeights => GeometryPending || FeaturesPending;
+        public string SaveLabel => HasUnavailableWeights ? "保存作业并保留待复核分" : "保存作业";
+
+        public string ReviewSummary => HasUnavailableWeights
+            ? "无法自动确认的分值会留给老师复核。"
+            : "将按此规则评估可读的参数和已选项目。";
         public string WeightNotice
         {
             get
             {
                 var messages = new List<string>();
                 if (GeometryPending)
-                    messages.Add("当前版本不能自动核算几何分，几何权重将留给人工复核。");
+                    messages.Add("几何自动确认仅限已验证的同一保存版本与配置。其他提交的几何权重留给人工复核。");
                 if (FeaturesPending)
                     messages.Add("尚未指定特征类型，特征权重将留给人工复核。");
                 return string.Join(" ", messages);
@@ -178,7 +277,11 @@ namespace SWGrade.Desktop
 
         internal void ChangeStandard(string path)
         {
+            string previousSuggestion = System.IO.Path.GetFileNameWithoutExtension(StandardPath);
             StandardPath = path;
+            if (string.IsNullOrWhiteSpace(Name) || Name == previousSuggestion)
+                Name = System.IO.Path.GetFileNameWithoutExtension(path);
+            Notify(nameof(StandardConfigurationSummary));
             ConfigurationFileHash = null;
             ConfigurationChoices = Array.Empty<ConfigurationChoice>();
             StandardConfiguration = null;
@@ -197,8 +300,13 @@ namespace SWGrade.Desktop
                 ConfigurationStatus = "此处选中的配置就是批改时使用的标准模型版本。";
         }
 
-        internal AssignmentRules ToRules()
+        internal AssignmentRules ToRules(bool acceptReview = false)
         {
+            if (mode == GradingMode.ProcessRequired && !FeatureTypeNames().Any())
+                throw new ArgumentException("请在「还要检查指定建模操作」下至少选一种操作，或关闭此项。");
+            if (mode == GradingMode.ProcessRequired && Features.TryValue(out var featureWeight) && featureWeight == 0)
+                throw new ArgumentException("请在高级设置为建模操作分配分值，或关闭「还要检查指定建模操作」。");
+
             if (ConfigurationFileHash != null && !ConfigurationChoices.Any(choice => choice.Name == StandardConfiguration))
                 throw new ArgumentException("请选择标准模型用于批改的配置。");
             var policy = GeometryPolicy == "分档" ? Domain.GeometryPolicy.Bands :
@@ -208,7 +316,8 @@ namespace SWGrade.Desktop
                 StandardConfiguration = Optional(StandardConfiguration),
                 StudentConfiguration = Optional(StudentConfiguration),
                 ExpectedCadYear = ExpectedYear,
-                Mode = Mode == "指定过程" ? GradingMode.ProcessRequired : GradingMode.GeometryFirst,
+                Mode = mode,
+                SheetMetal = SheetMetal,
                 GeometryPolicy = policy,
                 GeometryWeight = Geometry.Read(),
                 ParametersWeight = Parameters.Read(),
@@ -227,7 +336,7 @@ namespace SWGrade.Desktop
                 rules.GeometryBands = Bands == originalBands ? savedBands.ToList() : ReadBands();
 
             rules.Validate();
-            if (HasUnavailableWeights && !ConfirmUnavailableWeights)
+            if (HasUnavailableWeights && !ConfirmUnavailableWeights && !acceptReview)
                 throw new ArgumentException("请确认保留人工复核分值，或先将无法自动评分的分值转给参数。");
             return rules;
         }
@@ -272,6 +381,8 @@ namespace SWGrade.Desktop
             Notify(nameof(HasUnavailableWeights));
             Notify(nameof(WeightNotice));
             Notify(nameof(RedistributeLabel));
+            Notify(nameof(SaveLabel));
+            Notify(nameof(ReviewSummary));
         }
 
         private void SyncPreset()
@@ -302,6 +413,33 @@ namespace SWGrade.Desktop
         public event PropertyChangedEventHandler PropertyChanged;
         private void Notify([CallerMemberName] string property = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    }
+
+    internal sealed class FeatureChoice : INotifyPropertyChanged
+    {
+        private readonly RulesDraft draft;
+        private readonly string key;
+
+        internal FeatureChoice(RulesDraft draft, string label, string key)
+        {
+            this.draft = draft;
+            Label = label;
+            this.key = key;
+        }
+
+        public string Label { get; }
+        public bool Selected
+        {
+            get => draft.HasFeature(key);
+            set
+            {
+                if (Selected != value)
+                    draft.SetFeature(key, value);
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        internal void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
     }
 
     internal sealed class ConfigurationChoice

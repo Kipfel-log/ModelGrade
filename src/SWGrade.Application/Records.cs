@@ -86,7 +86,8 @@ namespace SWGrade.Application
     public interface IModelReader
     {
         Task<PartConfigurations> ReadConfigurationsAsync(string path, string cadYear, Action<string> report);
-        Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report);
+        Task<ModelInspectionResult> ReadAsync(string path, string configuration, string cadYear, Action<string> report,
+            SheetMetalMode sheetMetal = SheetMetalMode.Automatic);
     }
 
     public static class Clock

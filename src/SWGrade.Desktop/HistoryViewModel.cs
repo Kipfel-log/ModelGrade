@@ -15,15 +15,17 @@ namespace SWGrade.Desktop
     internal sealed class HistoryViewModel : INotifyPropertyChanged
     {
         private readonly TeacherViewModel teacher;
+        private readonly NotificationCenter notices;
         private IReadOnlyList<HistoryEntry> entries = Array.Empty<HistoryEntry>();
         private HistoryEntry selected;
         private bool isLoading;
         private string error;
 
-        internal HistoryViewModel(TeacherViewModel teacher, Action openRecord)
+        internal HistoryViewModel(TeacherViewModel teacher, Action openRecord, NotificationCenter notices)
         {
             this.teacher = teacher;
-            RefreshCommand = new RelayCommand(async () => await RefreshAsync(), () => !IsLoading);
+            this.notices = notices;
+            RefreshCommand = new RelayCommand(async () => await RefreshAsync(notify: true), () => !IsLoading);
             OpenCommand = new RelayCommand(() =>
             {
                 teacher.OpenHistoryEntry(Selected);
@@ -56,7 +58,7 @@ namespace SWGrade.Desktop
         public ICommand RefreshCommand { get; }
         public ICommand OpenCommand { get; }
 
-        internal async Task RefreshAsync()
+        internal async Task RefreshAsync(bool notify = false)
         {
             if (IsLoading)
                 return;
@@ -75,6 +77,8 @@ namespace SWGrade.Desktop
             catch (Exception exception)
             {
                 Error = "读取本地批改记录失败。 " + exception.Message;
+                if (notify)
+                    notices.Publish("无法读取记录", "请确认本地作业已打开，再重新读取。", NoticeKind.Error);
             }
             finally
             {

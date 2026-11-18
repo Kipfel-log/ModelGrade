@@ -10,9 +10,9 @@ namespace SWGrade.Desktop
             InitializeComponent();
         }
 
-        internal TeacherViewModel Connect(Window owner)
+        internal TeacherViewModel Connect(Window owner, NotificationCenter notices)
         {
-            var model = new TeacherViewModel(owner);
+            var model = new TeacherViewModel(owner, notices);
             DataContext = model;
             return model;
         }

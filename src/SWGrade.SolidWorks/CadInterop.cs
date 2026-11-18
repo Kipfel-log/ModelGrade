@@ -116,11 +116,27 @@ namespace SWGrade.SolidWorks
                 releaseOrder.Add(value);
         }
 
-        public void Dispose()
+        internal int ReferenceCheckpoint => releaseOrder.Count;
+
+        internal void ReleaseAfter(int checkpoint)
         {
-            // Release each distinct RCW once. Never force final release.
-            for (int index = releaseOrder.Count - 1; index >= 0; index--)
-                Marshal.ReleaseComObject(releaseOrder[index]);
+            // Release each distinct RCW once. Earlier references, including the application, remain valid.
+            for (int index = releaseOrder.Count - 1; index >= checkpoint; index--)
+            {
+                object reference = releaseOrder[index];
+                releaseOrder.RemoveAt(index);
+                references.Remove(reference);
+                try
+                {
+                    Marshal.ReleaseComObject(reference);
+                }
+                catch (Exception exception) when (exception is InvalidComObjectException || exception is ArgumentException || exception is COMException)
+                {
+                    Log("释放 CAD 对象：" + CadAnalysis.DescribeError(exception));
+                }
+            }
         }
+
+        public void Dispose() => ReleaseAfter(0);
     }
 }

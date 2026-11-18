@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
 using SWGrade.SolidWorks;
+using SWGrade.Domain;
 
 namespace SWGrade.Desktop
 {
@@ -54,14 +55,14 @@ namespace SWGrade.Desktop
             analysis.UpdateInputs();
         }
 
-        internal Task<CadPartPreview> ReadAsync(string version, Action<string> report)
+        internal Task<CadPartPreview> ReadAsync(string version, Action<string> report, SheetMetalMode sheetMetal)
         {
             string path = SourcePath;
             string config = RequestedConfiguration;
             var part = OpenPart;
             return StaWorker.Run(() => part == null
-                ? CadAnalysis.PreviewFile(path, config, version, report)
-                : CadAnalysis.PreviewOpenPart(part, config, version, report));
+                ? CadAnalysis.PreviewFile(path, config, version, report, sheetMetal)
+                : CadAnalysis.PreviewOpenPart(part, config, version, report, sheetMetal));
         }
 
         private void Browse()

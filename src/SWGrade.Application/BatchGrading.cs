@@ -81,7 +81,7 @@ namespace SWGrade.Application
                 throw new InvalidOperationException("标准件与保存作业时的哈希不同。请保存新作业以更新标准件。");
 
             var model = await reader.ReadAsync(assignment.StandardPath, assignment.Rules.StandardConfiguration,
-                assignment.Rules.ExpectedCadYear, report);
+                assignment.Rules.ExpectedCadYear, report, assignment.Rules.SheetMetal);
             if (model == null || !model.OpenedSuccessfully || !model.SourceIntegrityVerified ||
                 model.DocumentHash != assignment.StandardHash || model.VolumeM3 == null || model.SurfaceAreaM2 == null)
                 throw new InvalidOperationException("标准件未取得完整的只读实体度量，队列尚未开始。");
@@ -191,16 +191,15 @@ namespace SWGrade.Application
                     return;
                 }
 
-                var student = await reader.ReadAsync(submission.FilePath, requested, standard.SolidWorksVersion, diagnostics.Add);
+                var student = await reader.ReadAsync(submission.FilePath, requested, standard.SolidWorksVersion, diagnostics.Add,
+                    assignment.Rules.SheetMetal);
                 if (student?.OpenedSuccessfully != true || !student.SourceIntegrityVerified || student.DocumentHash != localHash)
                     throw new InvalidOperationException("未能验证学生文件的真实只读分析结果。");
 
                 submission.StandardModel = standard;
                 submission.StudentModel = student;
-                submission.Grade = engine.Evaluate(assignment.Rules, standard, student, new GeometryEvidence
-                {
-                    Reason = "当前版本尚无通过真机验证的几何比较数据。请进行教师复核。"
-                }, submission.ConfigurationOverride);
+                submission.Grade = engine.Evaluate(assignment.Rules, standard, student,
+                    SavedGeometry.CompareIdenticalSnapshot(standard, student), submission.ConfigurationOverride);
                 submission.State = submission.Grade.NeedsReview ? TaskState.NeedsReview : TaskState.Completed;
                 submission.StatusDetail = submission.Grade.NeedsReview ? "已有可评估证据，待核对未评估项。" : "已完成全部计分检查。";
             }

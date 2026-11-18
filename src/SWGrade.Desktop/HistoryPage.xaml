@@ -19,8 +19,9 @@
         </DockPanel>
         <Border Grid.Row="1" Style="{StaticResource Panel}">
             <DockPanel>
-                <ui:InfoBar DockPanel.Dock="Top" IsOpen="{Binding HasError, Mode=OneWay}" IsClosable="False" Severity="Error"
-                            Title="无法读取记录" Message="{Binding Error}" Margin="0,0,0,12"/>
+                <TextBlock DockPanel.Dock="Top" Text="本机记录暂不可用，可以重新读取。"
+                           Style="{StaticResource Description}" Margin="0,0,0,12"
+                           Visibility="{Binding HasError, Converter={StaticResource WhenTrue}}"/>
                 <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="4" Margin="0,0,0,12"
                              Visibility="{Binding IsLoading, Converter={StaticResource Available}}"/>
                 <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,14,0,0">

@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:SWGrade.Desktop"
         Title="SWGrade" Icon="Assets/SWGrade.ico" Width="1340" Height="860" MinWidth="760" MinHeight="460"
         WindowStartupLocation="CenterScreen" ResizeMode="CanResize"
         Background="{DynamicResource Canvas}" Foreground="{DynamicResource Ink}"
@@ -86,5 +87,7 @@
         </Border>
         <ContentControl x:Name="PageContent" Grid.Column="1" Focusable="False"
                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        <local:NotificationStack x:Name="Notifications" Grid.Column="1" Panel.ZIndex="5" Width="386"
+                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12,12,18,144"/>
     </Grid>
 </Window>

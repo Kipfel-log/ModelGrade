@@ -28,6 +28,7 @@ namespace SWGrade.Domain
     public sealed class AssignmentRules
     {
         public GradingMode Mode { get; set; } = GradingMode.GeometryFirst;
+        public SheetMetalMode SheetMetal { get; set; }
         public decimal GeometryWeight { get; set; } = 60;
         public decimal ParametersWeight { get; set; } = 25;
         public decimal FeaturesWeight { get; set; } = 15;
@@ -61,7 +62,8 @@ namespace SWGrade.Domain
             MassTolerance.Validate("质量");
             if (!Numeric.IsNonnegativeFinite(GeometryTolerance))
                 throw new ArgumentException("几何差异率容差必须是非负有限数。");
-            if (!Enum.IsDefined(typeof(GradingMode), Mode) || !Enum.IsDefined(typeof(GeometryPolicy), GeometryPolicy))
+            if (!Enum.IsDefined(typeof(GradingMode), Mode) || !Enum.IsDefined(typeof(GeometryPolicy), GeometryPolicy) ||
+                !Enum.IsDefined(typeof(SheetMetalMode), SheetMetal))
                 throw new ArgumentException("评分模式无效。");
             if (ExpectedCadYear != null && ExpectedCadYear != "2025" && ExpectedCadYear != "2026")
                 throw new ArgumentException("可选择 SOLIDWORKS 2025、2026 或自动识别。");
