@@ -1,0 +1,55 @@
+name: Build Windows portable package
+
+on:
+  push:
+    branches:
+      - build/windows-7c57acb
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build Release x64
+        run: dotnet build SWGrade.sln -c Release -p:Platform=x64 --nologo
+
+      - name: Run regression checks
+        run: |
+          dotnet run --project tests/CloudChecks -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/WorkflowChecks -c Release
+          exit $LASTEXITCODE
+
+      - name: Stage and check portable layout
+        run: |
+          $desktop = 'src/SWGrade.Desktop/bin/x64/Release/net48'
+          $probe = 'src/SWGrade.Probe/bin/x64/Release/net48'
+          $package = 'dist/SWGrade-Windows-x64-7c57acb/bin'
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+          Copy-Item -Path "$desktop/*" -Destination $package -Recurse -Exclude '*.pdb'
+          Copy-Item -LiteralPath "$probe/SWGrade.Probe.exe","$probe/SWGrade.Probe.exe.config" -Destination $package
+          foreach ($file in @('SWGrade.Desktop.exe', 'SWGrade.Desktop.exe.config', 'Wpf.Ui.dll', 'Microsoft.Data.Sqlite.dll', 'e_sqlite3.dll')) {
+            if (-not (Test-Path -LiteralPath "$package/$file" -PathType Leaf)) {
+              throw "Portable package is missing $file"
+            }
+          }
+          & "$package/SWGrade.Probe.exe" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SWGrade-Windows-x64-7c57acb
+          path: dist/SWGrade-Windows-x64-7c57acb/
+          if-no-files-found: error
+          retention-days: 30
