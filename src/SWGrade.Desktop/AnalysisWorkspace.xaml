@@ -243,10 +243,14 @@
                             <DockPanel>
                                 <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8"
                                            Visibility="{Binding HasSolidPair, Converter={StaticResource VisibleWhenTrue}}">
-                                    <ComboBox ItemsSource="{Binding GeometryCoordinateChoices}" DisplayMemberPath="Label"
-                                              SelectedValuePath="Value" SelectedValue="{Binding GeometryCoordinates}"
+                                    <ComboBox x:Name="ResultCoordinates" ItemsSource="{Binding GeometryCoordinateChoices}" DisplayMemberPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding GeometryCoordinates, Mode=TwoWay}"
+                                              IsEnabled="{Binding CanEdit}"
                                               AutomationProperties.Name="实体比较坐标" MinWidth="146"/>
-                                    <Button Content="按此坐标比较" Command="{Binding ApplyCoordinatesCommand}" Margin="7,0,0,0"/>
+                                    <TextBlock Text="{Binding CoordinateResultText}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Muted}" Margin="9,0"/>
+                                    <Button Content="按原始坐标重新比较" Command="{Binding UseOriginalCoordinatesCommand}"
+                                            Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
                                 </WrapPanel>
                                 <local:PartViewport Scene="{Binding Scene}"/>
                             </DockPanel>
@@ -363,8 +367,14 @@
                         </TabItem>
                         <TabItem Header="偏差云图" Visibility="{Binding HasSolidPair, Converter={StaticResource VisibleWhenTrue}}">
                             <DockPanel>
-                                <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="计算偏差云图"
-                                        Command="{Binding CalculateDeviationCommand}" Margin="0,0,0,7"/>
+                                <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,7">
+                                    <TextBlock Text="{Binding CoordinateResultText}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Muted}" Margin="0,0,9,0"/>
+                                    <Button x:Name="CloudOriginalCoordinates" Content="按原始坐标重新比较"
+                                            Command="{Binding UseOriginalCoordinatesCommand}"
+                                            Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
+                                    <Button x:Name="CalculateCloud" Content="计算偏差云图" Command="{Binding CalculateDeviationCommand}"/>
+                                </WrapPanel>
                                 <local:PartViewport IsDeviationView="True" Scene="{Binding Scene}"/>
                             </DockPanel>
                         </TabItem>

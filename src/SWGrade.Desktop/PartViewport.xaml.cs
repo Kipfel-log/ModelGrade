@@ -304,6 +304,13 @@ namespace SWGrade.Desktop
                     geometry = Group(differencesModel, solid.TransparentOverlap);
             }
             PartVisual.Content = geometry;
+            bool showHighlights = solid != null && mode == ViewMode.Overlay && DifferencesOnly.IsChecked != true &&
+                differencesModel != null;
+            HighlightDifferences.Visibility = showHighlights ? Visibility.Visible : Visibility.Collapsed;
+            // Share the camera but use a separate depth buffer so overlap cannot hide the exact difference meshes.
+            bool highlight = showHighlights && HighlightDifferences.IsChecked == true;
+            HighlightedDifferenceVisual.Content = highlight ? differencesModel : null;
+            DifferenceViewport.Visibility = highlight ? Visibility.Visible : Visibility.Collapsed;
             bool pair = Scene?.Reference != null;
             OverlayButton.Visibility = ReferenceButton.Visibility = pair ? Visibility.Visible : Visibility.Collapsed;
             GeometryNotice.Visibility = pair && !preparing ? Visibility.Visible : Visibility.Collapsed;
@@ -402,7 +409,13 @@ namespace SWGrade.Desktop
         {
             if (IsDeviationView && mode != view)
                 LocalDeviation.Text = "";
+            bool wasFocused = mode == ViewMode.Extra || mode == ViewMode.Missing;
             mode = view;
+            if (wasFocused || view == ViewMode.Extra || view == ViewMode.Missing)
+            {
+                FitCameraToMode();
+                UpdateCamera();
+            }
             Display();
         }
 
@@ -432,9 +445,23 @@ namespace SWGrade.Desktop
             yaw = flatNormal.HasValue ? Math.Atan2(flatNormal.Value.X, flatNormal.Value.Z) : 0.7;
             pitch = flatNormal.HasValue ? Math.Max(-1.56, Math.Min(1.56,
                 Math.Asin(Math.Max(-1, Math.Min(1, flatNormal.Value.Y))))) : 0.5;
+            FitCameraToMode();
+            UpdateCamera();
+        }
+
+        private void FitCameraToMode()
+        {
             zoom = 1;
             pan = new Vector3D();
-            UpdateCamera();
+            var difference = mode == ViewMode.Extra ? solid?.Extra : mode == ViewMode.Missing ? solid?.Missing : null;
+            if (difference == null || difference.Bounds.IsEmpty)
+                return;
+
+            var bounds = difference.Bounds;
+            pan = new Vector3D(bounds.X + bounds.SizeX / 2, bounds.Y + bounds.SizeY / 2, bounds.Z + bounds.SizeZ / 2);
+            double size = Math.Max(bounds.SizeX, Math.Max(bounds.SizeY, bounds.SizeZ));
+            if (size > 0)
+                zoom = Math.Min(20, 2 / size);
         }
 
         private Vector3D Direction() =>

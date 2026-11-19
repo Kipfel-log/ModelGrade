@@ -46,8 +46,8 @@ namespace SWGrade.Desktop
             AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal), () => CanEdit && Current.HasPart);
             CheckFlatCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetalMode.RequireFlatPattern, openFlat: true),
                 () => CanEdit && ShowResult && ShowSheetMetal);
-            ApplyCoordinatesCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal),
-                () => CanEdit && ShowResult && Scene?.Reference != null);
+            UseOriginalCoordinatesCommand = new RelayCommand(() => GeometryCoordinates = GeometryCoordinates.Original,
+                () => CanEdit && ShowResult && CanRetryOriginalCoordinates);
             CalculateDeviationCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal, includeDeviation: true),
                 () => CanEdit && ShowResult && HasSolidPair && Scene.Geometry?.ValidatedComparison == true);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
@@ -62,7 +62,7 @@ namespace SWGrade.Desktop
         public ICommand SwapCommand { get; }
         public ICommand AnalyzeCommand { get; }
         public ICommand CheckFlatCommand { get; }
-        public ICommand ApplyCoordinatesCommand { get; }
+        public ICommand UseOriginalCoordinatesCommand { get; }
         public ICommand CalculateDeviationCommand { get; }
         public ICommand BackCommand { get; }
         public ICommand CopyCommand { get; }
@@ -71,7 +71,25 @@ namespace SWGrade.Desktop
         public string AnalyzeLabel => Reference.HasPart ? "开始对照 →" : "分析当前件 →";
         public SheetMetalOption[] SheetMetalOptions => SheetMetalOption.Choices;
         public GeometryCoordinateChoice[] GeometryCoordinateChoices => GeometryCoordinateChoice.Choices;
-        public GeometryCoordinates GeometryCoordinates { get; set; }
+        private GeometryCoordinates geometryCoordinates;
+        public GeometryCoordinates GeometryCoordinates
+        {
+            get => geometryCoordinates;
+            set
+            {
+                if (geometryCoordinates == value || !CanEdit)
+                    return;
+                geometryCoordinates = value;
+                Notify();
+                if (ShowResult && HasSolidPair)
+                    _ = AnalyzeAsync(SheetMetal, updatingCoordinates: true);
+            }
+        }
+        public bool CanRetryOriginalCoordinates => HasSolidPair &&
+            Scene.Coordinates == GeometryCoordinates.Aligned && Scene.Geometry?.ValidatedComparison != true;
+        public string CoordinateResultText => !HasSolidPair ? "" : Scene.Coordinates == GeometryCoordinates.Original
+            ? "当前结果：原始 CAD 坐标" : Scene.Geometry?.ValidatedComparison == true
+                ? "当前结果：已验证形状刚体对齐" : "当前结果：形状刚体对齐待复核";
         public SheetMetalMode SheetMetal { get; set; }
         public int ResultTab { get => resultTab; set { resultTab = value; Notify(); } }
         public bool ShowSheetMetal => Scene?.HasSheetMetal == true;
@@ -98,6 +116,8 @@ namespace SWGrade.Desktop
                 Notify(nameof(ResultTitle));
                 Notify(nameof(ShowSheetMetal));
                 Notify(nameof(HasSolidPair));
+                Notify(nameof(CanRetryOriginalCoordinates));
+                Notify(nameof(CoordinateResultText));
                 Notify(nameof(FoldedTabTitle));
                 Notify(nameof(Details));
                 Notify(nameof(ParameterRows));
@@ -217,6 +237,10 @@ namespace SWGrade.Desktop
                     yield return new AnalysisFinding("检查配置或保存状态", blocker +
                         " 请核对两边的配置，在 SOLIDWORKS 中重建并保存有问题的零件，再重新分析。");
 
+                if (HasSolidPair && blocker == null && Scene.Geometry?.ValidatedComparison != true)
+                    yield return new AnalysisFinding(CanRetryOriginalCoordinates ? "形状刚体对齐待复核" : "实体差集待复核",
+                        Scene.Geometry?.Reason ?? "未取得可验证的实体差集。");
+
                 if (report != null)
                 {
                     foreach (var check in report.Checks.Where(check => check.Status == CheckStatus.Fail))
@@ -300,13 +324,15 @@ namespace SWGrade.Desktop
             Current.Set(path, openPart, config);
         }
 
-        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false, bool includeDeviation = false)
+        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false, bool includeDeviation = false,
+            bool updatingCoordinates = false)
         {
             var coordinates = includeDeviation ? Scene.Geometry.Coordinates : GeometryCoordinates;
             IsBusy = true;
             Diagnostics = "";
-            Activity = openFlat ? "正在展开只读副本…" : "正在读取只读副本…";
-            if (!openFlat && !includeDeviation)
+            Activity = openFlat ? "正在展开只读副本…" :
+                updatingCoordinates ? "正在按新坐标比较…" : "正在读取只读副本…";
+            if (!openFlat && !includeDeviation && !updatingCoordinates)
             {
                 ShowResult = false;
                 ResultTab = 0;
@@ -319,7 +345,7 @@ namespace SWGrade.Desktop
                 IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
                 var reference = Reference.HasPart ? await Reference.ReadAsync(version, progress.Report, mode) : null;
                 var current = await Current.ReadAsync(version, progress.Report, mode);
-                var result = new AnalysisScene(reference, current, mode);
+                var result = new AnalysisScene(reference, current, mode, coordinates);
                 if (reference != null)
                 {
                     var standard = reference.Inspection;
@@ -346,6 +372,11 @@ namespace SWGrade.Desktop
             }
             catch (Exception exception)
             {
+                if (updatingCoordinates && Scene != null)
+                {
+                    geometryCoordinates = Scene.Coordinates;
+                    Notify(nameof(GeometryCoordinates));
+                }
                 string reason = CadAnalysis.DescribeError(exception);
                 Diagnostics += reason + Environment.NewLine;
                 notices.Publish("模型分析失败", FriendlyError(exception), NoticeKind.Error);
@@ -553,16 +584,18 @@ namespace SWGrade.Desktop
 
     public sealed class AnalysisScene
     {
-        internal AnalysisScene(CadPartPreview reference, CadPartPreview current, SheetMetalMode mode)
+        internal AnalysisScene(CadPartPreview reference, CadPartPreview current, SheetMetalMode mode, GeometryCoordinates coordinates)
         {
             Reference = reference;
             Current = current;
+            Coordinates = coordinates;
             HasSheetMetal = mode == SheetMetalMode.RequireFlatPattern ||
                 reference?.Inspection.SheetMetal?.Detected == true || current?.Inspection.SheetMetal?.Detected == true ||
                 reference?.Inspection.SheetMetal?.Issue != null || current?.Inspection.SheetMetal?.Issue != null;
         }
 
         internal bool HasSheetMetal { get; }
+        internal GeometryCoordinates Coordinates { get; }
 
         internal CadPartPreview Reference { get; }
         internal CadPartPreview Current { get; }

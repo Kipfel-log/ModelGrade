@@ -183,7 +183,8 @@ namespace SWGrade.Desktop
             EmptyMessage.Visibility = cloud?.Geometry == null ? Visibility.Visible : Visibility.Collapsed;
             EmptyMessage.Text = preparing ? "正在准备偏差色带…" : prepareIssue ??
                 (Scene?.Geometry?.ValidatedComparison == true ? Scene.SolidComparison?.DeviationIssue ??
-                    "点击「计算偏差云图」获取两侧的表面偏差。" : "实体比较或对齐待复核，偏差云图不可用。");
+                    "点击「计算偏差云图」获取两侧的表面偏差。" :
+                    Scene?.Geometry?.Reason ?? "未取得可验证的实体差集，无法计算偏差云图。");
         }
 
         private void ReportDeviationAt(Point location)
