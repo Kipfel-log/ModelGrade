@@ -22,14 +22,24 @@
                     <ComboBoxItem Content="等轴测"/>
                 </ComboBox>
             </WrapPanel>
-            <WrapPanel Margin="0,6,0,0">
+            <WrapPanel x:Name="DifferenceControls" Margin="0,6,0,0">
                 <WrapPanel x:Name="SolidControls" Visibility="Collapsed">
                     <Button x:Name="ExtraButton" Content="仅多余" Click="ShowExtra"/>
                     <Button x:Name="MissingButton" Content="仅缺少" Click="ShowMissing"/>
                     <CheckBox x:Name="TransparentReference" Content="透明参考件" Click="ToggleShared"
                               Margin="0,0,9,0" VerticalAlignment="Center"/>
+                    <Slider x:Name="ReferenceOpacity" Width="78" Minimum="0.1" Maximum="0.75" Value="0.25"
+                            Margin="0,0,9,0" VerticalAlignment="Center" ToolTip="参考件不透明度"
+                            AutomationProperties.Name="参考件不透明度" ValueChanged="ChangeReferenceOpacity"/>
                 </WrapPanel>
                 <CheckBox x:Name="DifferencesOnly" Content="仅看差异" Click="ToggleShared" VerticalAlignment="Center"/>
+            </WrapPanel>
+            <WrapPanel x:Name="DeviationControls" Visibility="Collapsed" Margin="0,6,0,0">
+                <Label Content="容差 mm" Target="{Binding ElementName=DeviationTolerance}" Padding="0,4,6,4"/>
+                <TextBox x:Name="DeviationTolerance" MinWidth="63" Margin="0,0,9,0" AutomationProperties.Name="偏差容差毫米"/>
+                <Label Content="范围 ±mm" Target="{Binding ElementName=DeviationRange}" Padding="0,4,6,4"/>
+                <TextBox x:Name="DeviationRange" MinWidth="63" Margin="0,0,9,0" AutomationProperties.Name="色带范围毫米"/>
+                <Button Content="应用色带" Click="ApplyDeviationScale" Margin="0" MinHeight="32"/>
             </WrapPanel>
         </StackPanel>
         <Border x:Name="Surface" Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource Line}"
@@ -37,7 +47,7 @@
                 MouseDown="BeginMove" MouseUp="EndMove" MouseMove="Move" MouseWheel="Zoom"
                 LostMouseCapture="CancelMove" SizeChanged="Resize">
             <Grid>
-                <Viewport3D ClipToBounds="True">
+                <Viewport3D x:Name="ModelViewport" ClipToBounds="True">
                     <Viewport3D.Camera>
                         <OrthographicCamera x:Name="ViewCamera" Position="0,0,8" LookDirection="0,0,-8"
                                             UpDirection="0,1,0" Width="4" NearPlaneDistance=".01" FarPlaneDistance="40"/>
@@ -73,6 +83,15 @@
                     <TextBlock Text="学生件缺少"/>
                 </StackPanel>
             </WrapPanel>
+            <StackPanel x:Name="DeviationLegend" Visibility="Collapsed" Margin="0,6,0,0">
+                <Border x:Name="DeviationColorBar" Height="10" CornerRadius="3"/>
+                <DockPanel Margin="0,2,0,0">
+                    <TextBlock x:Name="NegativeLimit" DockPanel.Dock="Left"/>
+                    <TextBlock x:Name="PositiveLimit" DockPanel.Dock="Right"/>
+                    <TextBlock x:Name="ToleranceBand" TextAlignment="Center"/>
+                </DockPanel>
+                <TextBlock x:Name="LocalDeviation" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,4,0,0"/>
+            </StackPanel>
             <TextBlock x:Name="GeometryNotice" Foreground="{DynamicResource Muted}" FontSize="13"
                        Margin="0,5,0,0" TextWrapping="Wrap"/>
             <TextBlock Text="左键旋转 · 右键平移 · 滚轮缩放" Foreground="{DynamicResource Muted}"

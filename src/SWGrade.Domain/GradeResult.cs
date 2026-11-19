@@ -41,6 +41,20 @@ namespace SWGrade.Domain
         public GeometryOperationEvidence Extra { get; set; }
         public GeometryOperationEvidence Overlap { get; set; }
         public string Reason { get; set; }
+
+        public double? DifferenceRatio
+        {
+            get
+            {
+                if (!ValidatedComparison || !(ReferenceVolumeM3 > 0) ||
+                    !Numeric.IsNonnegativeFinite(ReferenceVolumeM3.Value) ||
+                    !MissingVolumeM3.HasValue || !Numeric.IsNonnegativeFinite(MissingVolumeM3.Value) ||
+                    !ExtraVolumeM3.HasValue || !Numeric.IsNonnegativeFinite(ExtraVolumeM3.Value))
+                    return null;
+                double ratio = (MissingVolumeM3.Value + ExtraVolumeM3.Value) / ReferenceVolumeM3.Value;
+                return Numeric.IsNonnegativeFinite(ratio) ? (double?)ratio : null;
+            }
+        }
     }
 
     public sealed class GeometryOperationEvidence

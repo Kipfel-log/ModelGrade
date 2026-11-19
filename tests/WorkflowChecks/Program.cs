@@ -29,6 +29,7 @@ namespace SWGrade.WorkflowChecks
             {
                 await CheckWorkflow(root.FullName);
                 await CheckConfigurationWorkflow(root.FullName);
+                await CheckGeometryWorkflow(root.FullName);
             }
             finally
             {
@@ -556,6 +557,36 @@ namespace SWGrade.WorkflowChecks
             return path;
         }
 
+        private static async Task CheckGeometryWorkflow(string root)
+        {
+            var reference = Input(root, "solid-reference", "mock geometry reference");
+            var student = Input(root, "solid-student", "mock geometry student");
+            using var store = new SqliteGradeStore(Path.Combine(root, "geometry"));
+            var jobs = new Assignments(store);
+            var assignment = jobs.Create("MOCK", reference, new AssignmentRules
+            {
+                GeometryCoordinates = GeometryCoordinates.Aligned,
+                GeometryWeight = 60,
+                ParametersWeight = 40,
+                FeaturesWeight = 0
+            });
+            jobs.Import(assignment, new[] { reference, student });
+            var reader = new MockGeometryReader();
+            var service = new BatchGrading(store, reader, "MOCK");
+            await service.RunAsync(assignment, null, null);
+            var grades = store.LoadSubmissions(assignment.Id);
+            Check(reader.Comparisons == 1 && grades[0].Grade.Geometry.Source == "IdenticalSnapshot" &&
+                grades[1].Grade.Geometry.Source == "MOCK" && grades[1].Grade.Geometry.Coordinates == GeometryCoordinates.Aligned,
+                "batch uses the saved coordinate policy and skips identical snapshots");
+            var pair = grades[1];
+            var trial = TrialGrading.Evaluate(assignment, pair.StandardModel, pair.StudentModel, pair.Grade.Geometry);
+            Check(pair.Grade.FinalAutoScore == 40 && trial.FinalAutoScore == pair.Grade.FinalAutoScore &&
+                pair.Grade.Geometry.Missing.ErrorCode == 0, "geometry evidence and identical calculation survive SQLite roundtrip");
+            pair.Grade.Geometry.Coordinates = GeometryCoordinates.Original;
+            trial = TrialGrading.Evaluate(assignment, pair.StandardModel, pair.StudentModel, pair.Grade.Geometry);
+            Check(trial.FinalAutoScore == null && trial.ReviewPoints == 60, "trial with another coordinate strategy defers geometry");
+        }
+
         private static ModelInspectionResult Model(string hash, string config) => new ModelInspectionResult
         {
             DocumentHash = hash,
@@ -571,7 +602,7 @@ namespace SWGrade.WorkflowChecks
             FeatureTraversalComplete = true
         };
 
-        private sealed class MockReader : IModelReader
+        private class MockReader : IModelReader
         {
             private bool failedOnce;
             internal int ReferenceReads { get; private set; }
@@ -598,6 +629,27 @@ namespace SWGrade.WorkflowChecks
                     throw new InvalidDataException("MOCK transient read failure");
                 }
                 return Task.FromResult(Model(PartFiles.Hash(path), configuration ?? "A"));
+            }
+        }
+
+        private sealed class MockGeometryReader : MockReader, IGeometryComparer
+        {
+            internal int Comparisons { get; private set; }
+
+            public Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
+                GeometryCoordinates coordinates, Action<string> report)
+            {
+                Comparisons++;
+                return Task.FromResult(new GeometryEvidence
+                {
+                    Source = "MOCK",
+                    Coordinates = coordinates,
+                    ValidatedComparison = true,
+                    ReferenceVolumeM3 = 1,
+                    MissingVolumeM3 = 0.01,
+                    ExtraVolumeM3 = 0,
+                    Missing = new GeometryOperationEvidence { ErrorCode = 0, VolumeM3 = 0.01 }
+                });
             }
         }
 

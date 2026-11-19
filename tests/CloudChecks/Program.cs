@@ -231,6 +231,17 @@ namespace SWGrade.Probe
                 GeometryProbeValidation.SameRigidTransform(matrix, imported.StudentToReferenceTransform),
                 "复用对齐：读取报告及放置来源");
 
+            foreach (var snapshot in new[] { imported.Reference, imported.Student })
+            {
+                snapshot.SolidWorksRevision = imported.CadRevision;
+                snapshot.VolumeM3 = 2e-6;
+            }
+            var bound = imported.EvidenceFor(imported.Reference, imported.Student);
+            Require(bound.ValidatedComparison && bound.Coordinates == GeometryCoordinates.Aligned &&
+                bound.Overlap.VolumeM3 == 2e-6, "几何证据：仅使用与两侧分析快照一致的结果");
+            Require(!imported.EvidenceFor(imported.Reference, imported.Reference).ValidatedComparison,
+                "几何证据：拒绝不同的学生文件或配置");
+
             GeometryProbeValidation.CheckPlacementReference(source, imported.Reference);
             imported.Student.DocumentHash = new string('c', 64);
             GeometryProbeValidation.CheckPlacementStudent(source, imported.Student);

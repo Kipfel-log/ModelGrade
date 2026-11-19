@@ -20,6 +20,7 @@ namespace SWGrade.Desktop
             new PropertyMetadata(null, SceneChanged));
 
         public bool IsFlatPattern { get; set; }
+        public bool IsDeviationView { get; set; }
 
         private GeometryModel3D referenceModel;
         private GeometryModel3D currentModel;
@@ -36,6 +37,7 @@ namespace SWGrade.Desktop
         private string prepareIssue;
         private MouseButton? dragButton;
         private Point lastPoint;
+        private Point dragStart;
         private double yaw;
         private double pitch;
         private double zoom;
@@ -45,6 +47,7 @@ namespace SWGrade.Desktop
         public PartViewport()
         {
             InitializeComponent();
+            InitializeDeviationSettings();
             ResetCamera();
             Display();
         }
@@ -60,6 +63,11 @@ namespace SWGrade.Desktop
 
         private async void PrepareAsync(AnalysisScene scene)
         {
+            if (IsDeviationView)
+            {
+                await PrepareDeviationAsync(scene, resetCamera: true);
+                return;
+            }
             referenceModel = currentModel = null;
             overlayModel = differencesModel = null;
             solid = null;
@@ -89,6 +97,7 @@ namespace SWGrade.Desktop
                     overlayModel = models.Overlay;
                     differencesModel = models.Differences;
                     solid = models.Solid;
+                    UpdateReferenceOpacity();
                     preview = models.Preview;
                     flatNormal = models.Normal;
                     ResetCamera();
@@ -153,7 +162,9 @@ namespace SWGrade.Desktop
                 var extra = BuildOperation(native.Extra, center, scale, CurrentColor);
                 var missing = BuildOperation(native.Missing, center, scale, ReferenceColor);
                 var overlap = BuildOperation(native.Overlap, center, scale, SharedColor);
-                solid = new SolidViewportModels(extra, missing, Translucent(referenceModel, SharedColor));
+                var ghostOverlap = overlap == null ? null : Group(overlap.Children.OfType<GeometryModel3D>()
+                    .Select(model => (Model3D)Translucent(model, SharedColor)).ToArray());
+                solid = new SolidViewportModels(extra, missing, Translucent(referenceModel, SharedColor), ghostOverlap);
                 overlay = Group(overlap, extra, missing);
                 differences = Group(extra, missing);
             }
@@ -173,7 +184,7 @@ namespace SWGrade.Desktop
         private static bool CanDisplay(GeometryProbeOperation operation) =>
             operation?.VolumeM3 == 0 || operation?.TrianglesMetres?.Length > 0;
 
-        private static Model3D BuildOperation(GeometryProbeOperation operation, Point3D center, double scale, Color color) =>
+        private static Model3DGroup BuildOperation(GeometryProbeOperation operation, Point3D center, double scale, Color color) =>
             Group((operation.TrianglesMetres ?? Array.Empty<float[]>())
                 .Select(points => (Model3D)BuildMesh(points, center, scale, color)).ToArray());
 
@@ -194,11 +205,11 @@ namespace SWGrade.Desktop
             return transformed;
         }
 
-        private static GeometryModel3D Translucent(GeometryModel3D model, Color color)
+        private static GeometryModel3D Translucent(GeometryModel3D model, Color color, double opacity = .25)
         {
             if (model == null)
                 return null;
-            color.A = 64;
+            color.A = (byte)Math.Round(opacity * 255);
             var ghost = new GeometryModel3D(model.Geometry, new DiffuseMaterial(new SolidColorBrush(color)));
             ghost.Freeze();
             return ghost;
@@ -206,16 +217,18 @@ namespace SWGrade.Desktop
 
         private sealed class SolidViewportModels
         {
-            internal SolidViewportModels(Model3D extra, Model3D missing, Model3D transparentReference)
+            internal SolidViewportModels(Model3D extra, Model3D missing, Model3D transparentReference, Model3D transparentOverlap)
             {
                 Extra = extra;
                 Missing = missing;
                 TransparentReference = transparentReference;
+                TransparentOverlap = transparentOverlap;
             }
 
             internal Model3D Extra { get; }
             internal Model3D Missing { get; }
-            internal Model3D TransparentReference { get; }
+            internal Model3D TransparentReference { get; set; }
+            internal Model3D TransparentOverlap { get; set; }
         }
 
         private static Model3DGroup Group(params Model3D[] models)
@@ -270,6 +283,11 @@ namespace SWGrade.Desktop
         {
             if (PartVisual == null)
                 return;
+            if (IsDeviationView)
+            {
+                DisplayDeviation();
+                return;
+            }
             var item = mode == ViewMode.Reference ? Scene?.Reference : Scene?.Current;
             Model3D geometry = mode == ViewMode.Overlay ? (DifferencesOnly.IsChecked == true ? differencesModel : overlayModel) :
                 mode == ViewMode.Reference ? referenceModel : mode == ViewMode.Extra ? solid?.Extra :
@@ -280,6 +298,10 @@ namespace SWGrade.Desktop
                     geometry = solid.TransparentReference;
                 else if (mode == ViewMode.Extra)
                     geometry = Group(geometry, solid.TransparentReference);
+                else if (mode == ViewMode.Missing)
+                    geometry = Group(geometry, solid.TransparentOverlap);
+                else if (mode == ViewMode.Overlay && DifferencesOnly.IsChecked != true)
+                    geometry = Group(differencesModel, solid.TransparentOverlap);
             }
             PartVisual.Content = geometry;
             bool pair = Scene?.Reference != null;
@@ -288,8 +310,10 @@ namespace SWGrade.Desktop
             Legend.Visibility = (mode == ViewMode.Overlay || mode == ViewMode.Missing || mode == ViewMode.Extra) &&
                 geometry != null ? Visibility.Visible : Visibility.Collapsed;
             SolidControls.Visibility = solid == null ? Visibility.Collapsed : Visibility.Visible;
-            TransparentReference.IsEnabled = solid?.TransparentReference != null &&
-                (mode == ViewMode.Reference || mode == ViewMode.Extra);
+            TransparentReference.IsEnabled = solid != null &&
+                (mode == ViewMode.Reference || mode == ViewMode.Extra ? solid.TransparentReference != null :
+                    mode != ViewMode.Current && solid.TransparentOverlap != null && DifferencesOnly.IsChecked != true);
+            ReferenceOpacity.IsEnabled = TransparentReference.IsEnabled && TransparentReference.IsChecked == true;
             DifferencesOnly.Visibility = mode == ViewMode.Overlay && differencesModel != null ? Visibility.Visible : Visibility.Collapsed;
             SetButton(OverlayButton, overlayModel != null, mode == ViewMode.Overlay);
             SetButton(CurrentButton, currentModel != null, mode == ViewMode.Current);
@@ -321,9 +345,8 @@ namespace SWGrade.Desktop
         private string DescribeGeometry(bool pair)
         {
             var evidence = Scene?.Geometry;
-            if (!IsFlatPattern && evidence?.ValidatedComparison == true && !Scene.HasSheetMetal)
+            if (!IsFlatPattern && evidence?.DifferenceRatio is double ratio && !Scene.HasSheetMetal)
             {
-                double ratio = (evidence.MissingVolumeM3.Value + evidence.ExtraVolumeM3.Value) / evidence.ReferenceVolumeM3.Value;
                 string coordinates = evidence.Coordinates == GeometryCoordinates.Original ? "原始 CAD 坐标" : "已验证刚体重合";
                 string figures = $"缺少 {evidence.MissingVolumeM3 * 1e9:G7} mm³ · 多余 {evidence.ExtraVolumeM3 * 1e9:G7} mm³ · 差异率 {ratio:P4}";
                 return solid != null ? coordinates + " · 已验证实体差集\n" + figures :
@@ -352,6 +375,23 @@ namespace SWGrade.Desktop
 
         private void ToggleShared(object sender, RoutedEventArgs args) => Display();
 
+        private void ChangeReferenceOpacity(object sender, RoutedPropertyChangedEventArgs<double> args)
+        {
+            UpdateReferenceOpacity();
+            Display();
+        }
+
+        private void UpdateReferenceOpacity()
+        {
+            if (solid == null || ReferenceOpacity == null)
+                return;
+            double opacity = ReferenceOpacity.Value;
+            solid.TransparentReference = Translucent(solid.TransparentReference as GeometryModel3D, SharedColor, opacity);
+            if (solid.TransparentOverlap is Model3DGroup overlap)
+                solid.TransparentOverlap = Group(overlap.Children.OfType<GeometryModel3D>()
+                    .Select(model => (Model3D)Translucent(model, SharedColor, opacity)).ToArray());
+        }
+
         private void ShowOverlay(object sender, RoutedEventArgs args) => Show(ViewMode.Overlay);
         private void ShowCurrent(object sender, RoutedEventArgs args) => Show(ViewMode.Current);
         private void ShowReference(object sender, RoutedEventArgs args) => Show(ViewMode.Reference);
@@ -360,6 +400,8 @@ namespace SWGrade.Desktop
 
         private void Show(ViewMode view)
         {
+            if (IsDeviationView && mode != view)
+                LocalDeviation.Text = "";
             mode = view;
             Display();
         }
@@ -423,6 +465,7 @@ namespace SWGrade.Desktop
                 return;
             dragButton = args.ChangedButton;
             lastPoint = args.GetPosition(Surface);
+            dragStart = lastPoint;
             Surface.CaptureMouse();
             args.Handled = true;
         }
@@ -453,7 +496,12 @@ namespace SWGrade.Desktop
         private void EndMove(object sender, MouseButtonEventArgs args)
         {
             if (dragButton == args.ChangedButton)
+            {
+                if (IsDeviationView && dragButton == MouseButton.Left &&
+                    (args.GetPosition(Surface) - dragStart).Length < 4)
+                    ReportDeviationAt(args.GetPosition(ModelViewport));
                 Surface.ReleaseMouseCapture();
+            }
         }
 
         private void CancelMove(object sender, MouseEventArgs args) => dragButton = null;

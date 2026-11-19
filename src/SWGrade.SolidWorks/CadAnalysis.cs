@@ -123,7 +123,8 @@ namespace SWGrade.SolidWorks
 
         public static GeometryProbeReport ProbeGeometry(string referencePath, string studentPath,
             string referenceConfiguration, string studentConfiguration, string expectedYear,
-            GeometryProbeAlignment alignment, bool includeMesh, Action<string> report, string placementReportPath = null)
+            GeometryProbeAlignment alignment, bool includeMesh, Action<string> report, string placementReportPath = null,
+            bool includeDeviation = false)
         {
             var result = new GeometryProbeReport
             {
@@ -185,6 +186,15 @@ namespace SWGrade.SolidWorks
                                     }
                                     var student = probe.CaptureSolid(studentModel);
                                     probe.Compare(result, reference, student, includeMesh, placement);
+                                    if (includeDeviation)
+                                    {
+                                        try { result.Deviation = DeviationProbe.Read(interop, reference, student); }
+                                        catch (Exception exception)
+                                        {
+                                            result.DeviationIssue = DescribeError(exception);
+                                            interop.Log("偏差云图未取得：" + result.DeviationIssue);
+                                        }
+                                    }
                                 });
                         });
 
@@ -252,7 +262,8 @@ namespace SWGrade.SolidWorks
                 }
                 finally
                 {
-                    sessionLock.ReleaseMutex();
+                    try { ModelCopy.RetryPending(log); }
+                    finally { sessionLock.ReleaseMutex(); }
                 }
             }
         }

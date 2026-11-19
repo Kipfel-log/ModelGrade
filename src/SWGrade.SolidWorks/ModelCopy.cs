@@ -113,7 +113,7 @@ namespace SWGrade.SolidWorks
             }
         }
 
-        private static void RetryPending(Action<string> report)
+        internal static void RetryPending(Action<string> report)
         {
             foreach (var entry in Pending)
             {

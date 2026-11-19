@@ -99,7 +99,7 @@ namespace SWGrade.SolidWorks
         }
 
         internal static float[] TessellateBody(CadInterop cad, object body, double facetWidth = 0,
-            Action<object, double[], int> sample = null)
+            Action<object, double[]> sample = null)
         {
             // Tessellate the supplied CAD body directly, including transient Boolean results.
             // https://help.solidworks.com/2020/English/api/sldworksapi/Tessellate_a_Body_Example_CSharp.htm
@@ -120,6 +120,24 @@ namespace SWGrade.SolidWorks
             var coordinates = new float[count * 9];
             var vertices = new Dictionary<int, double[]>();
             var ids = new List<int>(3);
+            object[] facetFaces = null;
+            if (sample != null)
+            {
+                facetFaces = new object[count];
+                var faces = cad.Call("IBody2", body, "GetFaces") as Array;
+                if (faces == null)
+                    throw new InvalidOperationException("偏差网格缺少 CAD 采样面。");
+                foreach (object face in faces)
+                {
+                    if (!(cad.Call(api, tessellation, "GetFaceFacets", face) is int[] facets))
+                        continue;
+                    foreach (int facet in facets)
+                    {
+                        if (facet >= 0 && facet < count)
+                            facetFaces[facet] = face;
+                    }
+                }
+            }
             for (int facet = 0; facet < count; facet++)
             {
                 ids.Clear();
@@ -139,7 +157,7 @@ namespace SWGrade.SolidWorks
                 if (ids.Count != 3)
                     throw new InvalidOperationException("CAD 返回的三角面顶点数量异常。");
 
-                object face = sample == null ? null : cad.Call(api, tessellation, "GetFacetFace", facet);
+                object face = facetFaces == null ? null : facetFaces[facet] ?? cad.Call(api, tessellation, "GetFacetFace", facet);
                 for (int index = 0; index < ids.Count; index++)
                 {
                     int vertexId = ids[index];
@@ -152,7 +170,7 @@ namespace SWGrade.SolidWorks
                     }
                     for (int axis = 0; axis < 3; axis++)
                         coordinates[facet * 9 + index * 3 + axis] = (float)point[axis];
-                    sample?.Invoke(face, point, facet * 3 + index);
+                    sample?.Invoke(face, point);
                 }
             }
             if (!IsTriangleArray(coordinates))

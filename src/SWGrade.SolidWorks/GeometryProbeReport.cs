@@ -29,6 +29,8 @@ namespace SWGrade.SolidWorks
         [DataMember] public double? DifferenceRatio { get; internal set; }
         [DataMember] public bool Measured { get; internal set; }
         [DataMember] public string ReviewReason { get; internal set; }
+        [IgnoreDataMember] public SurfaceDeviation Deviation { get; internal set; }
+        [IgnoreDataMember] public string DeviationIssue { get; internal set; }
 
         public GeometryEvidence EvidenceFor(ModelInspectionResult reference, ModelInspectionResult student)
         {
@@ -63,6 +65,8 @@ namespace SWGrade.SolidWorks
 
         private static bool SameSnapshot(ModelInspectionResult fromComparison, ModelInspectionResult fromInspection) =>
             fromComparison?.SourceIntegrityVerified == true && fromInspection?.SourceIntegrityVerified == true &&
+            fromComparison.DocumentHash?.Length == 64 && !string.IsNullOrWhiteSpace(fromComparison.Configuration) &&
+            !string.IsNullOrWhiteSpace(fromComparison.SolidWorksRevision) &&
             string.Equals(fromComparison.DocumentHash, fromInspection.DocumentHash, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(fromComparison.Configuration, fromInspection.Configuration, StringComparison.Ordinal) &&
             string.Equals(fromComparison.SolidWorksRevision, fromInspection.SolidWorksRevision, StringComparison.Ordinal) &&

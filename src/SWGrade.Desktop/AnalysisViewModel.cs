@@ -48,6 +48,8 @@ namespace SWGrade.Desktop
                 () => CanEdit && ShowResult && ShowSheetMetal);
             ApplyCoordinatesCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal),
                 () => CanEdit && ShowResult && Scene?.Reference != null);
+            CalculateDeviationCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal, includeDeviation: true),
+                () => CanEdit && ShowResult && HasSolidPair && Scene.Geometry?.ValidatedComparison == true);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
             CopyCommand = new RelayCommand(Copy, () => CanEdit && Scene != null);
             ExportCommand = new RelayCommand(Export, () => CanEdit && Scene != null);
@@ -61,6 +63,7 @@ namespace SWGrade.Desktop
         public ICommand AnalyzeCommand { get; }
         public ICommand CheckFlatCommand { get; }
         public ICommand ApplyCoordinatesCommand { get; }
+        public ICommand CalculateDeviationCommand { get; }
         public ICommand BackCommand { get; }
         public ICommand CopyCommand { get; }
         public ICommand ExportCommand { get; }
@@ -297,12 +300,13 @@ namespace SWGrade.Desktop
             Current.Set(path, openPart, config);
         }
 
-        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false)
+        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false, bool includeDeviation = false)
         {
+            var coordinates = includeDeviation ? Scene.Geometry.Coordinates : GeometryCoordinates;
             IsBusy = true;
             Diagnostics = "";
             Activity = openFlat ? "正在展开只读副本…" : "正在读取只读副本…";
-            if (!openFlat)
+            if (!openFlat && !includeDeviation)
             {
                 ShowResult = false;
                 ResultTab = 0;
@@ -324,12 +328,12 @@ namespace SWGrade.Desktop
                         (Reference.RequestedConfiguration != null && Current.RequestedConfiguration != null);
                     if (!result.HasSheetMetal && configured)
                     {
-                        Activity = "正在计算 SOLIDWORKS 实体差集…";
+                        Activity = includeDeviation ? "正在计算 SOLIDWORKS 表面偏差…" : "正在计算 SOLIDWORKS 实体差集…";
                         result.SolidComparison = await CadGeometryComparison.CompareAsync(standard, student,
-                            GeometryCoordinates, true, progress.Report);
+                            coordinates, true, progress.Report, includeDeviation);
                     }
                     result.Geometry = result.SolidComparison?.EvidenceFor(standard, student) ??
-                        SavedGeometry.CompareIdenticalSnapshot(standard, student, GeometryCoordinates);
+                        SavedGeometry.CompareIdenticalSnapshot(standard, student, coordinates);
                 }
                 report = reference == null ? null :
                     ModelComparison.Evaluate(reference.Inspection, current.Inspection,

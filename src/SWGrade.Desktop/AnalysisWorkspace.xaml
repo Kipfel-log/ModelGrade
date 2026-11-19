@@ -361,6 +361,13 @@
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
+                        <TabItem Header="偏差云图" Visibility="{Binding HasSolidPair, Converter={StaticResource VisibleWhenTrue}}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="计算偏差云图"
+                                        Command="{Binding CalculateDeviationCommand}" Margin="0,0,0,7"/>
+                                <local:PartViewport IsDeviationView="True" Scene="{Binding Scene}"/>
+                            </DockPanel>
+                        </TabItem>
                     </TabControl>
                 </Border>
             </Grid>

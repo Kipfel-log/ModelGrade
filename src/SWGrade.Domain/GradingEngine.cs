@@ -172,15 +172,8 @@ namespace SWGrade.Domain
             if (geometry != null && geometry.Coordinates != rules.GeometryCoordinates)
                 return Check("几何差异", weight, CheckStatus.Unverified, "当前比较采用的坐标策略与作业不同，请按作业策略重新比较。");
 
-            if (geometry?.ValidatedComparison != true || !(geometry.ReferenceVolumeM3 > 0) ||
-                !ValidMeasurement(geometry.ReferenceVolumeM3).HasValue ||
-                !ValidMeasurement(geometry.MissingVolumeM3).HasValue ||
-                !ValidMeasurement(geometry.ExtraVolumeM3).HasValue)
+            if (!(geometry?.DifferenceRatio is double ratio))
                 return Check("几何差异", weight, CheckStatus.Unverified, geometry?.Reason ?? "当前环境未取得经验证的几何比较证据。");
-
-            double ratio = (geometry.MissingVolumeM3.Value + geometry.ExtraVolumeM3.Value) / geometry.ReferenceVolumeM3.Value;
-            if (!Numeric.IsNonnegativeFinite(ratio))
-                return Check("几何差异", weight, CheckStatus.Unverified, "差异率不可用。");
 
             double tolerance = rules.GeometryTolerance;
             decimal fraction = ratio <= tolerance ? 1 : 0;

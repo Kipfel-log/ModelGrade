@@ -27,6 +27,9 @@ namespace SWGrade.Domain
         [DataMember(Name = "geometry", EmitDefaultValue = false)]
         public GeometryEvidence Geometry { get; private set; }
 
+        [DataMember(Name = "geometryDifferenceRatio", EmitDefaultValue = false)]
+        public double? GeometryDifferenceRatio { get; private set; }
+
         public static ModelComparison Evaluate(ModelInspectionResult reference, ModelInspectionResult current,
             string referenceConfiguration, string currentConfiguration, SheetMetalMode sheetMetal = SheetMetalMode.Automatic,
             GeometryEvidence geometry = null)
@@ -70,7 +73,8 @@ namespace SWGrade.Domain
 
             geometry = geometry ?? SavedGeometry.CompareIdenticalSnapshot(reference, current);
             report.Geometry = geometry;
-            report.Evidence.Add(geometry.ValidatedComparison && problem == null
+            report.GeometryDifferenceRatio = problem == null ? geometry.DifferenceRatio : null;
+            report.Evidence.Add(report.GeometryDifferenceRatio.HasValue
                 ? new GradeCheck
                 {
                     Name = "几何差异",
