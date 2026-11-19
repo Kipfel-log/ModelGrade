@@ -252,7 +252,7 @@
                                     <Button Content="按原始坐标重新比较" Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
                                 </WrapPanel>
-                                <local:PartViewport Scene="{Binding Scene}"/>
+                                <local:PartViewport x:Name="SolidViewport" Scene="{Binding Scene}" WorkMessage="{Binding GeometryActivity}"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="展开图" Visibility="{Binding ShowSheetMetal, Converter={StaticResource VisibleWhenTrue}}">
@@ -375,7 +375,8 @@
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <Button x:Name="CalculateCloud" Content="计算偏差云图" Command="{Binding CalculateDeviationCommand}"/>
                                 </WrapPanel>
-                                <local:PartViewport IsDeviationView="True" Scene="{Binding Scene}"/>
+                                <local:PartViewport x:Name="CloudViewport" IsDeviationView="True" Scene="{Binding Scene}"
+                                                    WorkMessage="{Binding GeometryActivity}"/>
                             </DockPanel>
                         </TabItem>
                     </TabControl>

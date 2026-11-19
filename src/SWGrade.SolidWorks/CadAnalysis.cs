@@ -185,10 +185,10 @@ namespace SWGrade.SolidWorks
                                             interop.Log("学生文件内容已变更。按命令指定的对齐报告复用其放置方式。");
                                     }
                                     var student = probe.CaptureSolid(studentModel);
-                                    probe.Compare(result, reference, student, includeMesh, placement);
+                                    probe.Compare(result, reference, student, includeMesh, placement, includeDeviation);
                                     if (includeDeviation)
                                     {
-                                        try { result.Deviation = DeviationProbe.Read(interop, reference, student); }
+                                        try { result.Deviation = DeviationProbe.Read(interop, reference, student, result.Missing, result.Extra); }
                                         catch (Exception exception)
                                         {
                                             result.DeviationIssue = DescribeError(exception);

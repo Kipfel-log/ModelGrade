@@ -10,6 +10,7 @@ namespace SWGrade.SolidWorks
     [DataContract]
     public sealed class GeometryProbeReport
     {
+        public const string NoCoincidence = "NoCoincidence";
         [DataMember] public string ReferencePath { get; internal set; }
         [DataMember] public string StudentPath { get; internal set; }
         [DataMember] public string RequestedReferenceConfiguration { get; internal set; }
@@ -109,6 +110,7 @@ namespace SWGrade.SolidWorks
         [DataMember] public double? VolumeM3 { get; internal set; }
         [DataMember(EmitDefaultValue = false)] public float[][] TrianglesMetres { get; internal set; }
         [DataMember(EmitDefaultValue = false)] public string MeshIssue { get; internal set; }
+        [IgnoreDataMember] internal double[][] DeviationBounds { get; set; }
     }
 
     internal static class GeometryProbeValidation

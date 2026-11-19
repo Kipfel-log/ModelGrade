@@ -62,7 +62,7 @@
                         <OrthographicCamera x:Name="ViewCamera" Position="0,0,8" LookDirection="0,0,-8"
                                             UpDirection="0,1,0" Width="4" NearPlaneDistance=".01" FarPlaneDistance="40"/>
                     </Viewport3D.Camera>
-                    <ModelVisual3D Content="{StaticResource ViewportLights}"/>
+                    <ModelVisual3D x:Name="Lighting" Content="{StaticResource ViewportLights}"/>
                     <ModelVisual3D x:Name="PartVisual"/>
                 </Viewport3D>
                 <Viewport3D x:Name="DifferenceViewport" Camera="{Binding ElementName=ModelViewport, Path=Camera}"
@@ -104,5 +104,22 @@
             <TextBlock Text="左键旋转 · 右键平移 · 滚轮缩放" Foreground="{DynamicResource Muted}"
                        Margin="0,5,0,0" TextWrapping="Wrap"/>
         </StackPanel>
+        <Border x:Name="WorkOverlay" Grid.RowSpan="3" Background="{DynamicResource ViewportSurface}" CornerRadius="6">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding WorkMessage, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="22">
+                <TextBlock Text="{Binding WorkMessage, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           TextAlignment="Center" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
+                <ProgressBar Height="3" Width="120" Margin="0,10,0,0" IsIndeterminate="True"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

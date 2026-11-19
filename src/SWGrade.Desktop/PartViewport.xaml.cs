@@ -18,6 +18,14 @@ namespace SWGrade.Desktop
         public static readonly DependencyProperty SceneProperty = DependencyProperty.Register(
             nameof(Scene), typeof(AnalysisScene), typeof(PartViewport),
             new PropertyMetadata(null, SceneChanged));
+        public static readonly DependencyProperty WorkMessageProperty = DependencyProperty.Register(
+            nameof(WorkMessage), typeof(string), typeof(PartViewport), new PropertyMetadata(null));
+
+        public string WorkMessage
+        {
+            get => (string)GetValue(WorkMessageProperty);
+            set => SetValue(WorkMessageProperty, value);
+        }
 
         public bool IsFlatPattern { get; set; }
         public bool IsDeviationView { get; set; }
@@ -125,11 +133,11 @@ namespace SWGrade.Desktop
         {
             var reference = flat ? scene.Reference?.FlatTriangleCoordinates : scene.Reference?.TriangleCoordinates;
             var current = flat ? scene.Current?.FlatTriangleCoordinates : scene.Current?.TriangleCoordinates;
-            var native = !flat && scene.Geometry?.ValidatedComparison == true ? scene.SolidComparison : null;
+            var native = !flat && scene.ViewGeometry?.ValidatedComparison == true ? scene.ViewComparison : null;
             if (native?.StudentToReferenceTransform != null)
                 current = TransformTriangles(current, native.StudentToReferenceTransform);
             bool hasSolidMeshes = native != null && CanDisplay(native.Missing) && CanDisplay(native.Extra) && CanDisplay(native.Overlap);
-            var preview = hasSolidMeshes ? null : SurfacePreview.Prepare(reference, current);
+            var preview = scene.HasSheetMetal ? SurfacePreview.Prepare(reference, current) : null;
             reference = preview?.Reference ?? reference;
             current = preview?.Current ?? current;
             var bounds = Rect3D.Empty;
@@ -152,8 +160,8 @@ namespace SWGrade.Desktop
                 return (null, null, null, null, preview, null, null);
 
             double scale = 2 / extent;
-            var referenceModel = BuildMesh(reference, center, scale, ReferenceColor);
-            var currentModel = BuildMesh(current, center, scale, CurrentColor);
+            var referenceModel = BuildMesh(reference, center, scale, scene.HasSheetMetal ? ReferenceColor : SharedColor);
+            var currentModel = BuildMesh(current, center, scale, scene.HasSheetMetal ? CurrentColor : SharedColor);
             Model3DGroup overlay = null;
             Model3DGroup differences = null;
             SolidViewportModels solid = null;
@@ -168,7 +176,7 @@ namespace SWGrade.Desktop
                 overlay = Group(overlap, extra, missing);
                 differences = Group(extra, missing);
             }
-            else if (preview.Compared)
+            else if (preview?.Compared == true)
             {
                 var shared = BuildMesh(preview.Shared, center, scale, SharedColor);
                 var a = BuildMesh(preview.CurrentOnly, center, scale, CurrentColor);
@@ -351,19 +359,21 @@ namespace SWGrade.Desktop
 
         private string DescribeGeometry(bool pair)
         {
-            var evidence = Scene?.Geometry;
+            var evidence = Scene?.ViewGeometry;
             if (!IsFlatPattern && evidence?.DifferenceRatio is double ratio && !Scene.HasSheetMetal)
             {
                 string coordinates = evidence.Coordinates == GeometryCoordinates.Original ? "原始 CAD 坐标" : "已验证刚体重合";
                 string figures = $"缺少 {evidence.MissingVolumeM3 * 1e9:G7} mm³ · 多余 {evidence.ExtraVolumeM3 * 1e9:G7} mm³ · 差异率 {ratio:P4}";
+                if (Scene.OriginalPreview != null)
+                    coordinates += "预览 · 对齐规则的几何分待复核";
                 return solid != null ? coordinates + " · 已验证实体差集\n" + figures :
-                    coordinates + " · " + figures + "\n当前视图为近似网格预览，不用于自动评分。";
+                    coordinates + " · " + figures + "\n未取得实体差集的显示网格。";
             }
             if (pair && preview?.Compared == true)
                 return (IsFlatPattern ? "" : (evidence?.Reason ?? "实体比较待复核。") + "\n") + "近似网格预览，不用于自动评分。";
             if (pair)
                 return IsFlatPattern ? preview?.Issue ?? "未取得两份网格，无法显示叠加。" :
-                    evidence?.Reason ?? preview?.Issue ?? "未取得两份网格，无法显示叠加。";
+                    evidence?.Reason ?? "未取得可验证的实体差集。可切换查看单件模型。";
             return "";
         }
 

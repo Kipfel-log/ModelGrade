@@ -99,7 +99,7 @@ namespace SWGrade.SolidWorks
         }
 
         internal static float[] TessellateBody(CadInterop cad, object body, double facetWidth = 0,
-            Action<object, double[]> sample = null)
+            Action<object, double[], double[], double[]> sample = null)
         {
             // Tessellate the supplied CAD body directly, including transient Boolean results.
             // https://help.solidworks.com/2020/English/api/sldworksapi/Tessellate_a_Body_Example_CSharp.htm
@@ -120,6 +120,7 @@ namespace SWGrade.SolidWorks
             var coordinates = new float[count * 9];
             var vertices = new Dictionary<int, double[]>();
             var ids = new List<int>(3);
+            var corners = sample == null ? null : new double[3][];
             object[] facetFaces = null;
             if (sample != null)
             {
@@ -170,8 +171,10 @@ namespace SWGrade.SolidWorks
                     }
                     for (int axis = 0; axis < 3; axis++)
                         coordinates[facet * 9 + index * 3 + axis] = (float)point[axis];
-                    sample?.Invoke(face, point);
+                    if (corners != null)
+                        corners[index] = point;
                 }
+                sample?.Invoke(face, corners[0], corners[1], corners[2]);
             }
             if (!IsTriangleArray(coordinates))
                 throw new InvalidOperationException("CAD 返回的实体网格坐标无效。");

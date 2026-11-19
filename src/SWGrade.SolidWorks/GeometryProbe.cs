@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SWGrade.SolidWorks
 {
@@ -36,7 +37,8 @@ namespace SWGrade.SolidWorks
             return CopySolid(body);
         }
 
-        internal void Compare(GeometryProbeReport report, object reference, object student, bool includeMesh, double[] placement)
+        internal void Compare(GeometryProbeReport report, object reference, object student, bool includeMesh, double[] placement,
+            bool includeDeviation)
         {
             double referenceVolume = PartProbe.ReadBodyMeasurements(cad, reference).Volume;
             double studentVolume = PartProbe.ReadBodyMeasurements(cad, student).Volume;
@@ -50,9 +52,9 @@ namespace SWGrade.SolidWorks
 
             int cut = cad.Constant("swBodyOperationType_e", "SWBODYCUT");
             int intersect = cad.Constant("swBodyOperationType_e", "SWBODYINTERSECT");
-            report.Missing = Operate("参考 − 学生", reference, student, cut, false, includeMesh);
-            report.Extra = Operate("学生 − 参考", student, reference, cut, false, includeMesh);
-            report.Overlap = Operate("参考 ∩ 学生", reference, student, intersect, true, includeMesh);
+            report.Missing = Operate("参考 − 学生", reference, student, cut, false, includeMesh, includeDeviation);
+            report.Extra = Operate("学生 − 参考", student, reference, cut, false, includeMesh, includeDeviation);
+            report.Overlap = Operate("参考 ∩ 学生", reference, student, intersect, true, includeMesh, false);
 
             var reason = GeometryProbeValidation.ResolveVolumes(referenceVolume, studentVolume,
                 report.Missing, report.Extra, report.Overlap);
@@ -89,7 +91,10 @@ namespace SWGrade.SolidWorks
             }
 
             if (!coincides || args[1] == null)
+            {
+                report.AlignmentState = GeometryProbeReport.NoCoincidence;
                 throw new InvalidOperationException("SOLIDWORKS 未找到可验证的形状重合变换。");
+            }
 
             ApplyStudentTransform(report, student, studentVolume, args[1]);
             report.AlignmentState = "CandidateApplied";
@@ -125,7 +130,8 @@ namespace SWGrade.SolidWorks
             report.StudentToReferenceTransform = matrix;
         }
 
-        private GeometryProbeOperation Operate(string label, object master, object tool, int operation, bool intersect, bool mesh)
+        private GeometryProbeOperation Operate(string label, object master, object tool, int operation, bool intersect,
+            bool mesh, bool deviation)
         {
             var result = new GeometryProbeOperation { State = "Failed" };
             int checkpoint = cad.ReferenceCheckpoint;
@@ -176,6 +182,8 @@ namespace SWGrade.SolidWorks
                 result.State = "BodiesMeasured";
                 if (mesh)
                     ReadMeshes(result, bodies);
+                if (deviation)
+                    result.DeviationBounds = bodies.Cast<object>().Select(body => cad.Call(Body, body, "GetBodyBox") as double[]).ToArray();
             }
             catch (Exception exception)
             {

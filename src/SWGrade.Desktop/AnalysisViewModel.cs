@@ -48,8 +48,8 @@ namespace SWGrade.Desktop
                 () => CanEdit && ShowResult && ShowSheetMetal);
             UseOriginalCoordinatesCommand = new RelayCommand(() => GeometryCoordinates = GeometryCoordinates.Original,
                 () => CanEdit && ShowResult && CanRetryOriginalCoordinates);
-            CalculateDeviationCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal, includeDeviation: true),
-                () => CanEdit && ShowResult && HasSolidPair && Scene.Geometry?.ValidatedComparison == true);
+            CalculateDeviationCommand = new RelayCommand(async () => await CalculateDeviationAsync(),
+                () => CanEdit && ShowResult && HasSolidPair && Scene.ViewGeometry?.ValidatedComparison == true);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
             CopyCommand = new RelayCommand(Copy, () => CanEdit && Scene != null);
             ExportCommand = new RelayCommand(Export, () => CanEdit && Scene != null);
@@ -87,9 +87,11 @@ namespace SWGrade.Desktop
         }
         public bool CanRetryOriginalCoordinates => HasSolidPair &&
             Scene.Coordinates == GeometryCoordinates.Aligned && Scene.Geometry?.ValidatedComparison != true;
-        public string CoordinateResultText => !HasSolidPair ? "" : Scene.Coordinates == GeometryCoordinates.Original
-            ? "当前结果：原始 CAD 坐标" : Scene.Geometry?.ValidatedComparison == true
-                ? "当前结果：已验证形状刚体对齐" : "当前结果：形状刚体对齐待复核";
+        public string CoordinateResultText => !HasSolidPair ? "" : GeometryActivity ??
+            (Scene.Coordinates == GeometryCoordinates.Original ? "当前结果：原始 CAD 坐标" :
+                Scene.Geometry?.ValidatedComparison == true ? "当前结果：已验证形状刚体对齐" :
+                Scene.OriginalPreview != null ? "对齐未通过 · 原始 CAD 坐标预览" : "当前结果：形状刚体对齐待复核");
+        public string GeometryActivity => IsBusy && !string.IsNullOrEmpty(Activity) ? Activity : null;
         public SheetMetalMode SheetMetal { get; set; }
         public int ResultTab { get => resultTab; set { resultTab = value; Notify(); } }
         public bool ShowSheetMetal => Scene?.HasSheetMetal == true;
@@ -103,7 +105,13 @@ namespace SWGrade.Desktop
         public string Activity
         {
             get => activity;
-            private set { activity = value; Notify(); }
+            private set
+            {
+                activity = value;
+                Notify();
+                Notify(nameof(GeometryActivity));
+                Notify(nameof(CoordinateResultText));
+            }
         }
 
         public AnalysisScene Scene
@@ -194,6 +202,7 @@ namespace SWGrade.Desktop
                 busy = value;
                 Notify();
                 Notify(nameof(CanEdit));
+                Notify(nameof(GeometryActivity));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -239,7 +248,8 @@ namespace SWGrade.Desktop
 
                 if (HasSolidPair && blocker == null && Scene.Geometry?.ValidatedComparison != true)
                     yield return new AnalysisFinding(CanRetryOriginalCoordinates ? "形状刚体对齐待复核" : "实体差集待复核",
-                        Scene.Geometry?.Reason ?? "未取得可验证的实体差集。");
+                        (Scene.Geometry?.Reason ?? "未取得可验证的实体差集。") +
+                        (Scene.OriginalPreview == null ? "" : " 三维差集和偏差云图使用原始 CAD 坐标。对齐规则的几何分仍待复核。"));
 
                 if (report != null)
                 {
@@ -324,15 +334,14 @@ namespace SWGrade.Desktop
             Current.Set(path, openPart, config);
         }
 
-        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false, bool includeDeviation = false,
-            bool updatingCoordinates = false)
+        private async Task AnalyzeAsync(SheetMetalMode mode, bool openFlat = false, bool updatingCoordinates = false)
         {
-            var coordinates = includeDeviation ? Scene.Geometry.Coordinates : GeometryCoordinates;
+            var coordinates = GeometryCoordinates;
             IsBusy = true;
             Diagnostics = "";
             Activity = openFlat ? "正在展开只读副本…" :
                 updatingCoordinates ? "正在按新坐标比较…" : "正在读取只读副本…";
-            if (!openFlat && !includeDeviation && !updatingCoordinates)
+            if (!openFlat && !updatingCoordinates)
             {
                 ShowResult = false;
                 ResultTab = 0;
@@ -354,12 +363,19 @@ namespace SWGrade.Desktop
                         (Reference.RequestedConfiguration != null && Current.RequestedConfiguration != null);
                     if (!result.HasSheetMetal && configured)
                     {
-                        Activity = includeDeviation ? "正在计算 SOLIDWORKS 表面偏差…" : "正在计算 SOLIDWORKS 实体差集…";
+                        Activity = "正在计算 SOLIDWORKS 实体差集…";
                         result.SolidComparison = await CadGeometryComparison.CompareAsync(standard, student,
-                            coordinates, true, progress.Report, includeDeviation);
+                            coordinates, true, progress.Report);
                     }
                     result.Geometry = result.SolidComparison?.EvidenceFor(standard, student) ??
                         SavedGeometry.CompareIdenticalSnapshot(standard, student, coordinates);
+                    if (result.SolidComparison?.AlignmentState == GeometryProbeReport.NoCoincidence)
+                    {
+                        Activity = "对齐未通过，正在按原始 CAD 坐标计算差集…";
+                        var original = await CadGeometryComparison.CompareAsync(standard, student, GeometryCoordinates.Original,
+                            true, progress.Report);
+                        result.SetOriginalPreview(original);
+                    }
                 }
                 report = reference == null ? null :
                     ModelComparison.Evaluate(reference.Inspection, current.Inspection,
@@ -380,6 +396,36 @@ namespace SWGrade.Desktop
                 string reason = CadAnalysis.DescribeError(exception);
                 Diagnostics += reason + Environment.NewLine;
                 notices.Publish("模型分析失败", FriendlyError(exception), NoticeKind.Error);
+            }
+            finally
+            {
+                Activity = "";
+                IsBusy = false;
+            }
+        }
+
+        private async Task CalculateDeviationAsync()
+        {
+            var current = Scene;
+            IsBusy = true;
+            Activity = "正在计算 SOLIDWORKS 表面偏差…";
+            Diagnostics = "";
+            try
+            {
+                IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
+                var reference = current.Reference.Inspection;
+                var student = current.Current.Inspection;
+                var calculated = await CadGeometryComparison.CompareAsync(reference, student,
+                    current.ViewGeometry.Coordinates, false, progress.Report, includeDeviation: true);
+                var evidence = calculated.EvidenceFor(reference, student);
+                Scene = evidence.ValidatedComparison ? current.WithDeviation(calculated.Deviation, calculated.DeviationIssue) :
+                    current.WithDeviation(null, evidence.Reason);
+            }
+            catch (Exception exception)
+            {
+                string reason = CadAnalysis.DescribeError(exception);
+                Diagnostics += reason + Environment.NewLine;
+                Scene = current.WithDeviation(null, reason);
             }
             finally
             {
@@ -601,5 +647,29 @@ namespace SWGrade.Desktop
         internal CadPartPreview Current { get; }
         internal GeometryProbeReport SolidComparison { get; set; }
         internal GeometryEvidence Geometry { get; set; }
+        internal GeometryProbeReport OriginalPreview { get; private set; }
+        internal GeometryEvidence ViewGeometry => originalPreviewGeometry ?? Geometry;
+        internal GeometryProbeReport ViewComparison => OriginalPreview ?? SolidComparison;
+        internal SurfaceDeviation Deviation { get; private set; }
+        internal string DeviationIssue { get; private set; }
+        private GeometryEvidence originalPreviewGeometry;
+
+        internal void SetOriginalPreview(GeometryProbeReport report)
+        {
+            var evidence = report.EvidenceFor(Reference.Inspection, Current.Inspection);
+            if (evidence.ValidatedComparison)
+            {
+                OriginalPreview = report;
+                originalPreviewGeometry = evidence;
+            }
+        }
+
+        internal AnalysisScene WithDeviation(SurfaceDeviation deviation, string issue)
+        {
+            var result = (AnalysisScene)MemberwiseClone();
+            result.Deviation = deviation;
+            result.DeviationIssue = issue;
+            return result;
+        }
     }
 }
