@@ -32,7 +32,7 @@ namespace SWGrade.Desktop
         private readonly string originalGeometryText;
         private readonly string originalBands;
         private readonly IReadOnlyList<GeometryBand> savedBands;
-        private GeometryCoordinates geometryCoordinates;
+        private GeometryCoordinates? geometryCoordinates;
         private AssignmentDatum datum;
 
         internal RulesDraft() : this(new AssignmentRules { ParametersWeight = 40, FeaturesWeight = 0 }) { }
@@ -44,7 +44,8 @@ namespace SWGrade.Desktop
             CadYear = rules.ExpectedCadYear ?? "自动识别";
             mode = rules.Mode;
             SheetMetal = rules.SheetMetal;
-            GeometryCoordinates = rules.GeometryCoordinates;
+            GeometryCoordinates = rules.GeometryCoordinates == Domain.GeometryCoordinates.Aligned
+                ? (GeometryCoordinates?)null : rules.GeometryCoordinates;
             Datum = rules.Datum;
             checkProcess = mode == GradingMode.ProcessRequired ||
                 (rules.FeaturesWeight > 0 && rules.RequiredFeatureTypes.Count > 0);
@@ -169,12 +170,13 @@ namespace SWGrade.Desktop
             }
         }
         public string GeometryPolicy { get; set; }
-        public GeometryCoordinates GeometryCoordinates
+        public GeometryCoordinates? GeometryCoordinates
         {
             get => geometryCoordinates;
-            set { geometryCoordinates = value; Notify(); Notify(nameof(UsesDatum)); }
+            set { geometryCoordinates = value; Notify(); Notify(nameof(UsesDatum)); Notify(nameof(NeedsCoordinates)); }
         }
-        public bool UsesDatum => GeometryCoordinates == GeometryCoordinates.Datum;
+        public bool UsesDatum => GeometryCoordinates == Domain.GeometryCoordinates.Datum;
+        public bool NeedsCoordinates => !GeometryCoordinates.HasValue;
         public AssignmentDatum Datum
         {
             get => datum;
@@ -347,7 +349,8 @@ namespace SWGrade.Desktop
                 Mode = mode,
                 SheetMetal = SheetMetal,
                 GeometryPolicy = policy,
-                GeometryCoordinates = GeometryCoordinates,
+                GeometryCoordinates = GeometryCoordinates ??
+                    throw new ArgumentException("请在高级设置为新作业选择几何比较坐标。"),
                 Datum = UsesDatum ? Datum : null,
                 GeometryWeight = Geometry.Read(),
                 ParametersWeight = Parameters.Read(),

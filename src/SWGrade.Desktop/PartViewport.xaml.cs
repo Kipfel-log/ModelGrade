@@ -133,7 +133,7 @@ namespace SWGrade.Desktop
         {
             var reference = flat ? scene.Reference?.FlatTriangleCoordinates : scene.Reference?.TriangleCoordinates;
             var current = flat ? scene.Current?.FlatTriangleCoordinates : scene.Current?.TriangleCoordinates;
-            var native = !flat && scene.ViewGeometry?.ValidatedComparison == true ? scene.ViewComparison : null;
+            var native = !flat && scene.Geometry?.ValidatedComparison == true ? scene.SolidComparison : null;
             if (native?.StudentToReferenceTransform != null)
                 current = TransformTriangles(current, native.StudentToReferenceTransform);
             bool hasSolidMeshes = native != null && CanDisplay(native.Missing) && CanDisplay(native.Extra) && CanDisplay(native.Overlap);
@@ -360,15 +360,12 @@ namespace SWGrade.Desktop
 
         private string DescribeGeometry(bool pair)
         {
-            var evidence = Scene?.ViewGeometry;
+            var evidence = Scene?.Geometry;
             if (!IsFlatPattern && evidence?.DifferenceRatio is double ratio && !Scene.HasSheetMetal)
             {
                 string coordinates = evidence.Coordinates == GeometryCoordinates.Original ? "原始 CAD 坐标" :
-                    evidence.Coordinates == GeometryCoordinates.Datum ? $"已按基准对齐 · 核对 {evidence.DatumMatchedPlanes} 个外侧平面" :
-                    "已验证刚体重合";
+                    $"已按基准对齐 · 核对 {evidence.DatumMatchedPlanes} 个外侧平面";
                 string figures = $"缺少 {evidence.MissingVolumeM3 * 1e9:G7} mm³ · 多余 {evidence.ExtraVolumeM3 * 1e9:G7} mm³ · 差异率 {ratio:P4}";
-                if (Scene.OriginalPreview != null)
-                    coordinates += "预览 · 对齐规则的几何分待复核";
                 return solid != null ? coordinates + " · 已验证实体差集\n" + figures :
                     coordinates + " · " + figures + "\n未取得实体差集的显示网格。";
             }

@@ -255,7 +255,7 @@
                                     <Button Content="按原始坐标重新比较" Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <Button x:Name="ResultDatumAction" Content="选择基准并对齐…" Command="{Binding ChooseDatumCommand}"
-                                            Visibility="{Binding ShowResultDatumAction, Converter={StaticResource VisibleWhenTrue}}"/>
+                                            Visibility="{Binding UsesDatum, Converter={StaticResource VisibleWhenTrue}}"/>
                                 </WrapPanel>
                                 <local:PartViewport x:Name="SolidViewport" Scene="{Binding Scene}" WorkMessage="{Binding GeometryActivity}"/>
                             </DockPanel>
@@ -381,7 +381,7 @@
                                             Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <Button Content="选择基准并对齐…" Command="{Binding ChooseDatumCommand}"
-                                            Visibility="{Binding ShowResultDatumAction, Converter={StaticResource VisibleWhenTrue}}"/>
+                                            Visibility="{Binding UsesDatum, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <Button x:Name="CalculateCloud" Content="计算偏差云图" Command="{Binding CalculateDeviationCommand}"/>
                                 </WrapPanel>
                                 <local:PartViewport x:Name="CloudViewport" IsDeviationView="True" Scene="{Binding Scene}"

@@ -277,6 +277,15 @@ namespace SWGrade.WorkflowChecks
 
         private static void CheckAssignmentDraft()
         {
+            Check(GeometryCoordinateChoice.Choices.Select(option => option.Value).SequenceEqual(
+                new[] { GeometryCoordinates.Original, GeometryCoordinates.Datum }), "coordinate menus show only original and datum modes");
+            var legacy = new Assignment { Rules = new AssignmentRules { GeometryCoordinates = GeometryCoordinates.Aligned } };
+            var copied = RulesDraft.FromAssignment(legacy);
+            Check(copied.NeedsCoordinates, "a copy of a legacy assignment starts with coordinates unselected");
+            Expect<ArgumentException>(() => copied.ToRules(acceptReview: true), "saving a copy requires a supported coordinate mode");
+            copied.GeometryCoordinates = GeometryCoordinates.Original;
+            Check(copied.ToRules(acceptReview: true).GeometryCoordinates == GeometryCoordinates.Original &&
+                legacy.Rules.GeometryCoordinates == GeometryCoordinates.Aligned, "the new draft does not change the stored old scoring policy");
             var draft = RulesDraft.FromAssignment(new Assignment { Rules = new AssignmentRules() });
             Check(draft.Preset == "标准" && draft.Volume.Relative.Text == "0.1" && draft.Volume.Absolute.Text == "0.001" &&
                 draft.Area.Absolute.Text == "0.01" && draft.Mass.Absolute.Text == "0.001", "assignment displays percentages and engineering units");

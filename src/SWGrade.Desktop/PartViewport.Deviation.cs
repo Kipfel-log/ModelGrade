@@ -230,7 +230,7 @@ namespace SWGrade.Desktop
                 (cloud.UnknownFaces > 0 ? $" {cloud.UnknownFaces} 个灰色面片未核实。" : ""));
             EmptyMessage.Visibility = cloud?.Geometry == null ? Visibility.Visible : Visibility.Collapsed;
             EmptyMessage.Text = preparing ? "正在准备偏差色带…" : prepareIssue ??
-                (Scene?.ViewGeometry?.ValidatedComparison == true ? Scene.DeviationIssue ??
+                (Scene?.Geometry?.ValidatedComparison == true ? Scene.DeviationIssue ??
                     "点击「计算偏差云图」获取两侧的表面偏差。" :
                     Scene?.Geometry?.Reason ?? "未取得可验证的实体差集，无法计算偏差云图。");
         }

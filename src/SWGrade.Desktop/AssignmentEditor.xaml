@@ -161,6 +161,9 @@
                             <ComboBox x:Name="GeometryCoordinates" ItemsSource="{Binding Draft.GeometryCoordinateChoices}"
                                       DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Draft.GeometryCoordinates}"
                                       Margin="0,0,0,5"/>
+                            <TextBlock Text="原作业使用已退役的坐标方式。请为这份新作业选用原始 CAD 坐标或基准对齐。"
+                                       Style="{StaticResource HelpText}"
+                                       Visibility="{Binding Draft.NeedsCoordinates, Converter={StaticResource WhenTrue}}"/>
                             <TextBlock Text="允许从任意基准面建模时，可按作业基准摆正零件后再比较。作业规定了坐标和摆放时，使用原始 CAD 坐标。"
                                        Style="{StaticResource HelpText}"/>
                             <WrapPanel Visibility="{Binding Draft.UsesDatum, Converter={StaticResource WhenTrue}}" Margin="0,0,0,8">
