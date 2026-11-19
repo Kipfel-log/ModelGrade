@@ -1,6 +1,6 @@
 # SWGrade
 
-面向教师的 SOLIDWORKS 单零件作业分析与批改程序。0.4.1-preview.1已在 Linux 云端交叉编译为 Windows x64 / .NET Framework 4.8。桌面和命令行共用真实 CAD 读取代码。Windows 原生运行、CAD 读数、Windows 版 SQLite 和三种目标组合均待现场验收。
+面向教师的 SOLIDWORKS 单零件作业分析与批改程序。0.4.1-preview.1 已在 Linux 云端交叉编译为 Windows x64 / .NET Framework 4.8。桌面和命令行共用真实 CAD 读取代码。Windows 11 + SOLIDWORKS 2026 的探针已验证原始坐标差集、不同文件同实体以及形状对齐后的重合。桌面、Windows 版 SQLite 和完整组合验收仍待现场执行。
 
 ## 在 Windows 上运行
 
@@ -24,11 +24,13 @@
 
 可用 `--list-open` 列出当前打开的零件，或用 `--active` 读取活动零件的已保存版本。
 
+开发中的 `--geometry` 命令使用 SOLIDWORKS 对已保存的单实体零件执行双向实体差集实验。局部修改后可用 `--transform-report` 复用已验证的放置方式。该模式待真机验证，运行命令和预期见 [阶段 A 实体几何比较](docs/geometry-stage-a.md)。
+
 在 2025 实例上使用 `--expect 2025`，可加 `--config '配置名'` 和 `--json 'part-analysis.json'`。从便携包根目录可运行 `tests\Verify-ModelRead.ps1` 进行真实样本的重复读值及源文件校验。
 
 | 运行组合 | 状态 |
 | --- | --- |
-| Windows 11 x64 + SOLIDWORKS 2026 | 等待用户本机首验 |
+| Windows 11 x64 + SOLIDWORKS 2026 | 几何探针四组真机对照通过，完整流程待验收 |
 | Windows 10 22H2 x64 + SOLIDWORKS 2025 | 设计兼容，待学校机房真机验收 |
 | Windows 11 x64 + SOLIDWORKS 2025 | 设计兼容，尚未实测 |
 | Windows 10/11 x64，未启动或未安装 SOLIDWORKS | 有明确诊断路径，待 Windows 现场验证 |

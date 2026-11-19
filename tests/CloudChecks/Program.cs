@@ -50,6 +50,8 @@ namespace SWGrade.Probe
                 Expect<FileNotFoundException>(() => ModelCopy.Create(Path.Combine(folder, "missing.SLDPRT")), "报告缺失文件");
                 CheckOpenPartSelection();
                 CheckJson(folder);
+                CheckGeometryProbeValidation();
+                CheckSavedPlacement(folder);
                 Console.WriteLine("云端纯逻辑检查通过。未执行 SOLIDWORKS COM。");
             }
             finally
@@ -131,6 +133,56 @@ namespace SWGrade.Probe
             Console.WriteLine("PASS " + name);
         }
 
+        private static void CheckGeometryProbeValidation()
+        {
+            // Synthetic statistics exercise the decision logic only, not SOLIDWORKS or Boolean geometry.
+            GeometryProbeOperation Empty() => new GeometryProbeOperation { State = "EmptyUnconfirmed", ErrorCode = 0 };
+            GeometryProbeOperation Bodies(double volume) => new GeometryProbeOperation
+                { State = "BodiesMeasured", ErrorCode = 0, VolumeM3 = volume };
+
+            var missing = Empty();
+            var extra = Empty();
+            var overlap = Bodies(2e-6);
+            Require(GeometryProbeValidation.ResolveVolumes(2e-6, 2e-6, missing, extra, overlap) == null &&
+                missing.State == "ConfirmedEmpty" && extra.State == "ConfirmedEmpty" && missing.VolumeM3 == 0,
+                "诊断逻辑：差集为空需要独立交集证实");
+
+            missing = Empty();
+            extra = Empty();
+            Require(GeometryProbeValidation.ResolveVolumes(2e-6, 2e-6, missing, extra, Empty()) != null &&
+                missing.VolumeM3 == null, "诊断逻辑：三次空结果不能给出零差异");
+
+            var failure = new GeometryProbeOperation { State = "Failed", ErrorCode = 6 };
+            Require(GeometryProbeValidation.ResolveVolumes(2e-6, 2e-6, failure, Empty(), overlap) != null &&
+                failure.VolumeM3 == null, "诊断逻辑：布尔错误保留待复核");
+
+            var noIntersection = new GeometryProbeOperation { State = "NoIntersectionReported", ErrorCode = 1067 };
+            Require(GeometryProbeValidation.ResolveVolumes(2e-6, 3e-6, Bodies(2e-6), Bodies(3e-6), noIntersection) == null &&
+                noIntersection.VolumeM3 == 0 && noIntersection.ErrorCode == 1067,
+                "诊断逻辑：两次有体积的差集可证实无交集，保留原始状态码");
+            Require(GeometryProbeValidation.ResolveVolumes(2e-6, 3e-6, Bodies(1e-6), Bodies(2e-6), Bodies(0.5e-6)) != null,
+                "诊断逻辑：不接受不守恒的实体结果");
+            extra = Empty();
+            Require(GeometryProbeValidation.ResolveVolumes(3e-6, 2e-6, Bodies(1e-6), extra, Bodies(2e-6)) == null &&
+                extra.VolumeM3 == 0 && extra.State == "ConfirmedEmpty",
+                "诊断逻辑：单侧缺料时用交集证实多余项为空");
+
+            var rotation = new double[] { 0, 1, 0, -1, 0, 0, 0, 0, 1, 0.025, 0, 0, 1, 0, 0, 0 };
+            Require(GeometryProbeValidation.IsProperRigidTransform(rotation), "诊断逻辑：允许正交旋转及有限平移");
+            rotation[8] = -1;
+            Require(!GeometryProbeValidation.IsProperRigidTransform(rotation), "诊断逻辑：拒绝镜像矩阵");
+            rotation[8] = 1;
+            rotation[12] = 2;
+            Require(!GeometryProbeValidation.IsProperRigidTransform(rotation), "诊断逻辑：拒绝尺度变换");
+
+            string json = InspectionJson.SerializeGeometryProbe(new GeometryProbeReport { Missing = failure, ReviewReason = "未核实" });
+            using (var output = JsonDocument.Parse(json))
+                Require(!output.RootElement.GetProperty("Measured").GetBoolean() &&
+                    output.RootElement.GetProperty("Missing").GetProperty("VolumeM3").ValueKind == JsonValueKind.Null &&
+                    output.RootElement.GetProperty("DifferenceRatio").ValueKind == JsonValueKind.Null,
+                    "实验 JSON 保留失败与空差异数值");
+        }
+
         private static void CheckOpenPartSelection()
         {
             var unsaved = new OpenPartInfo(10, "零件1", "", "Default", true);
@@ -141,6 +193,67 @@ namespace SWGrade.Probe
                 dirty.ConfigurationForRead("指定配置") == "指定配置", "指定配置优先，留空使用打开文档配置");
             var other = new OpenPartInfo(10, "零件2", "示例.step", null, false);
             Require(!other.CanRead, "读取已打开零件需要原生 SLDPRT 磁盘版本");
+        }
+
+        private static void CheckSavedPlacement(string folder)
+        {
+            // Synthetic report used to test the saved placement rules without COM.
+            var matrix = new double[] { 0, 1, 0, 1, 0, 0, 0, 0, -1, -0.1485, 0, 0.105, 1, 0, 0, 0 };
+            var calibration = new GeometryProbeReport
+            {
+                Alignment = GeometryProbeAlignment.CoincidentShape,
+                AlignmentState = "CoincidenceVerified",
+                Measured = true,
+                DifferenceRatio = 0,
+                ReferenceVolumeM3 = 2e-6,
+                StudentVolumeM3 = 2e-6,
+                CadRevision = "34.2.1",
+                Missing = new GeometryProbeOperation { VolumeM3 = 0 },
+                Extra = new GeometryProbeOperation { VolumeM3 = 0 },
+                Overlap = new GeometryProbeOperation { VolumeM3 = 2e-6 },
+                StudentToReferenceTransform = matrix,
+                Reference = new ModelInspectionResult
+                {
+                    SourceIntegrityVerified = true, DocumentHash = new string('a', 64), Configuration = "参考"
+                },
+                Student = new ModelInspectionResult
+                {
+                    SourceIntegrityVerified = true, DocumentHash = new string('b', 64), Configuration = "学生"
+                }
+            };
+
+            string reportPath = Path.Combine(folder, "calibration.json");
+            InspectionJson.SaveNew(reportPath, InspectionJson.SerializeGeometryProbe(calibration));
+            var imported = InspectionJson.ReadGeometryProbe(reportPath);
+            var source = GeometryProbeValidation.ReadPlacementSource(reportPath, imported);
+            Require(source.ReportPath == reportPath && source.ReferenceHash == calibration.Reference.DocumentHash &&
+                source.StudentHash == calibration.Student.DocumentHash && source.CadRevision == calibration.CadRevision &&
+                GeometryProbeValidation.SameRigidTransform(matrix, imported.StudentToReferenceTransform),
+                "复用对齐：读取报告及放置来源");
+
+            GeometryProbeValidation.CheckPlacementReference(source, imported.Reference);
+            imported.Student.DocumentHash = new string('c', 64);
+            GeometryProbeValidation.CheckPlacementStudent(source, imported.Student);
+            Require(source.StudentHash != imported.Student.DocumentHash, "复用对齐：允许同配置的编辑后学生件");
+
+            imported.Reference.DocumentHash = new string('d', 64);
+            Expect<InvalidOperationException>(() => GeometryProbeValidation.CheckPlacementReference(source, imported.Reference),
+                "复用对齐：拒绝变更后的参考件");
+            imported.Student.Configuration = "另一配置";
+            Expect<InvalidOperationException>(() => GeometryProbeValidation.CheckPlacementStudent(source, imported.Student),
+                "复用对齐：拒绝另一个学生配置");
+
+            imported.Measured = false;
+            Expect<InvalidOperationException>(() => GeometryProbeValidation.ReadPlacementSource(reportPath, imported),
+                "复用对齐：拒绝待复核的源报告");
+            imported.Measured = true;
+            imported.Overlap.VolumeM3 = 1e-6;
+            Expect<InvalidOperationException>(() => GeometryProbeValidation.ReadPlacementSource(reportPath, imported),
+                "复用对齐：拒绝无完整重合证据的报告");
+
+            var other = (double[])matrix.Clone();
+            other[9] += 0.001;
+            Require(!GeometryProbeValidation.SameRigidTransform(matrix, other), "复用对齐：检测重建矩阵的平移差异");
         }
 
         private static void CheckJson(string folder)

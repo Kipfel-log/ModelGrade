@@ -19,6 +19,19 @@ namespace SWGrade.Probe
                 return 0;
             }
 
+            if (args.Length > 0 && args[0] == "--geometry")
+            {
+                try
+                {
+                    return GeometryProbeCommand.Run(args);
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine("[几何实验未完成] " + CadAnalysis.DescribeError(exception));
+                    return 4;
+                }
+            }
+
             if (!TryParse(args, out var model, out var configuration, out var expectedYear, out var jsonPath,
                 out var active, out var list))
             {
@@ -127,6 +140,7 @@ namespace SWGrade.Probe
             Console.WriteLine("SWGrade.Probe.exe --expect 2025|2026 --model \"C:\\样本\\零件.SLDPRT\" [--config \"配置名\"] [--json \"结果.json\"]");
             Console.WriteLine("SWGrade.Probe.exe --list-open [--expect 2025|2026]");
             Console.WriteLine("SWGrade.Probe.exe --active [--expect 2025|2026] [--config \"配置名\"] [--json \"结果.json\"]");
+            GeometryProbeCommand.PrintUsage();
             Console.WriteLine("模型探测使用当前用户会话中唯一已启动的 SOLIDWORKS 实例。");
         }
     }

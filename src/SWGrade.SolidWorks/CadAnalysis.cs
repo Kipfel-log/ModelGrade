@@ -121,6 +121,102 @@ namespace SWGrade.SolidWorks
             });
         }
 
+        public static GeometryProbeReport ProbeGeometry(string referencePath, string studentPath,
+            string referenceConfiguration, string studentConfiguration, string expectedYear,
+            GeometryProbeAlignment alignment, bool includeMesh, Action<string> report, string placementReportPath = null)
+        {
+            var result = new GeometryProbeReport
+            {
+                ReferencePath = referencePath,
+                StudentPath = studentPath,
+                RequestedReferenceConfiguration = referenceConfiguration,
+                RequestedStudentConfiguration = studentConfiguration,
+                Alignment = alignment,
+                AlignmentState = alignment == GeometryProbeAlignment.OriginalCoordinates ? "OriginalCoordinates" :
+                    alignment == GeometryProbeAlignment.ReusePlacement ? "AwaitingPlacement" : "AwaitingCoincidence"
+            };
+
+            try
+            {
+                if (!Enum.IsDefined(typeof(GeometryProbeAlignment), alignment))
+                    throw new ArgumentException("几何探针的对齐模式无效。", nameof(alignment));
+
+                if ((alignment == GeometryProbeAlignment.ReusePlacement) != !string.IsNullOrWhiteSpace(placementReportPath))
+                    throw new ArgumentException("复用放置方式需要指定对齐报告。", nameof(placementReportPath));
+
+                double[] placement = null;
+                if (alignment == GeometryProbeAlignment.ReusePlacement)
+                {
+                    string path = Path.GetFullPath(placementReportPath);
+                    var calibration = InspectionJson.ReadGeometryProbe(path);
+                    result.PlacementSource = GeometryProbeValidation.ReadPlacementSource(path, calibration);
+                    placement = calibration.StudentToReferenceTransform;
+                    result.RequestedReferenceConfiguration = referenceConfiguration ?? result.PlacementSource.ReferenceConfiguration;
+                    result.RequestedStudentConfiguration = studentConfiguration ?? result.PlacementSource.StudentConfiguration;
+                }
+
+                return WithSession(expectedYear, report, (interop, session) =>
+                {
+                    result.CadRevision = session.Revision;
+                    var probe = new GeometryProbe(interop, session.App);
+                    ReadSavedCopy(interop, session, referencePath, result.RequestedReferenceConfiguration, sheetMetal: SheetMetalMode.StandardPart,
+                        recordInspection: inspection => result.Reference = inspection,
+                        inspectModel: model =>
+                        {
+                            VerifyGeometryConfiguration(interop, result.Reference, "参考件");
+                            if (result.PlacementSource != null)
+                                GeometryProbeValidation.CheckPlacementReference(result.PlacementSource, result.Reference);
+                            var reference = probe.CaptureSolid(model);
+                            ReadSavedCopy(interop, session, studentPath, result.RequestedStudentConfiguration, sheetMetal: SheetMetalMode.StandardPart,
+                                recordInspection: inspection => result.Student = inspection,
+                                inspectModel: studentModel =>
+                                {
+                                    VerifyGeometryConfiguration(interop, result.Student, "学生件");
+                                    if (!string.Equals(result.Reference.Configuration, result.Student.Configuration,
+                                            StringComparison.Ordinal) &&
+                                        (result.RequestedReferenceConfiguration == null || result.RequestedStudentConfiguration == null))
+                                        throw new InvalidOperationException("文件配置不同。请明确指定两侧的配置后重试。");
+
+                                    if (result.PlacementSource != null)
+                                    {
+                                        GeometryProbeValidation.CheckPlacementStudent(result.PlacementSource, result.Student);
+                                        if (!string.Equals(result.PlacementSource.StudentHash, result.Student.DocumentHash, StringComparison.OrdinalIgnoreCase))
+                                            interop.Log("学生文件内容已变更。按命令指定的对齐报告复用其放置方式。");
+                                    }
+                                    var student = probe.CaptureSolid(studentModel);
+                                    probe.Compare(result, reference, student, includeMesh, placement);
+                                });
+                        });
+
+                    if (!result.Reference.SourceIntegrityVerified || !result.Student.SourceIntegrityVerified)
+                        throw new InvalidOperationException("源文件完整性检查未通过。");
+
+                    result.Measured = true;
+                    return result;
+                });
+            }
+            catch (Exception exception)
+            {
+                result.Measured = false;
+                result.DifferenceRatio = null;
+                result.ReviewReason = DescribeError(exception);
+                return result;
+            }
+        }
+
+        private static void VerifyGeometryConfiguration(CadInterop interop, ModelInspectionResult inspection, string label)
+        {
+            interop.Log("{0}配置：{1}；读取警告：0x{2:X8}；重建状态：{3}。",
+                label, inspection.Configuration, inspection.ReviewOpenWarningCode, inspection.RebuildState);
+
+            if (!inspection.OpenedSuccessfully || string.IsNullOrWhiteSpace(inspection.Configuration) ||
+                inspection.ReviewOpenWarningCode != 0 ||
+                inspection.RebuildStatusCode != interop.Constant("swModelRebuildStatus_e", "swModelRebuildStatus_FullyRebuilt"))
+                throw new InvalidOperationException(label + "的配置或重建状态未通过几何比较前置检查。");
+            if (inspection.FeatureTypes.ContainsKey("SheetMetal") || inspection.FeatureTypes.ContainsKey("FlatPattern"))
+                throw new InvalidOperationException(label + "包含钣金特征，折弯态和展开态需单独核实。");
+        }
+
         private static T WithSession<T>(string expectedYear, Action<string> report,
             Func<CadInterop, CadSession, T> action, CadDetection detection = null)
         {
@@ -186,7 +282,8 @@ namespace SWGrade.SolidWorks
         }
 
         private static ModelInspectionResult ReadSavedCopy(CadInterop interop, CadSession session, string modelPath,
-            string configuration, CadPartPreview preview = null, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
+            string configuration, CadPartPreview preview = null, SheetMetalMode sheetMetal = SheetMetalMode.Automatic,
+            Action<ModelInspectionResult> recordInspection = null, Action<object> inspectModel = null)
         {
             using (var copy = ModelCopy.Create(modelPath, interop.Log))
             {
@@ -197,13 +294,14 @@ namespace SWGrade.SolidWorks
                     SolidWorksVersion = session.Year,
                     SolidWorksRevision = session.Revision
                 };
+                recordInspection?.Invoke(result);
                 interop.Log("源文件：{0}", copy.SourcePath);
                 interop.Log("SHA-256：{0}", copy.Hash);
                 int references = interop.ReferenceCheckpoint;
                 bool closed = false;
                 try
                 {
-                    new PartProbe(interop, session.App, result).Read(copy.WorkingPath, configuration, sheetMetal, preview);
+                    new PartProbe(interop, session.App, result).Read(copy.WorkingPath, configuration, sheetMetal, preview, inspectModel);
                     closed = true;
                 }
                 finally
@@ -213,10 +311,10 @@ namespace SWGrade.SolidWorks
                     interop.ReleaseAfter(references);
 
                     copy.VerifySource();
+                    result.SourceIntegrityVerified = true;
                     interop.Log("源文件保护检查：SHA-256 与最后写入时间一致。");
                 }
 
-                result.SourceIntegrityVerified = true;
                 return result;
             }
         }

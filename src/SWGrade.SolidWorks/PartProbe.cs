@@ -27,7 +27,8 @@ namespace SWGrade.SolidWorks
             this.result = result;
         }
 
-        internal void Read(string path, string requestedConfiguration, SheetMetalMode mode, CadPartPreview preview = null)
+        internal void Read(string path, string requestedConfiguration, SheetMetalMode mode, CadPartPreview preview = null,
+            Action<object> inspectModel = null)
         {
             int partType = cad.Constant("swDocumentTypes_e", "swDocPART");
             int options = cad.Constant("swOpenDocOptions_e", "swOpenDocOptions_Silent") |
@@ -76,6 +77,7 @@ namespace SWGrade.SolidWorks
                 result.OpenedSuccessfully = true;
                 result.DocumentType = "Part";
                 ReadConfigurationsAndGeometry(model, requestedConfiguration, mode, preview);
+                inspectModel?.Invoke(model);
             }
             finally
             {
@@ -187,7 +189,7 @@ namespace SWGrade.SolidWorks
                     throw new InvalidOperationException("展开后未取得一个有效实体。");
 
                 object body = bodies.GetValue(bodies.GetLowerBound(0));
-                var dimensions = ReadBodyMeasurements(body);
+                var dimensions = ReadBodyMeasurements(cad, body);
                 result.SheetMetal.FlatVolumeM3 = dimensions.Volume;
                 result.SheetMetal.FlatSurfaceAreaM2 = dimensions.Area;
                 cad.Log("钣金展开态：体积 {0:G17} m³，实体表面积 {1:G17} m²。", dimensions.Volume, dimensions.Area);
@@ -410,14 +412,14 @@ namespace SWGrade.SolidWorks
             double volume = 0, area = 0;
             foreach (object body in solids)
             {
-                var dimensions = ReadBodyMeasurements(body);
+                var dimensions = ReadBodyMeasurements(cad, body);
                 volume += dimensions.Volume;
                 area += dimensions.Area;
             }
             SetSolidMeasurements(volume, area);
         }
 
-        private (double Volume, double Area) ReadBodyMeasurements(object body)
+        internal static (double Volume, double Area) ReadBodyMeasurements(CadInterop cad, object body)
         {
             // IBody2 returns geometric volume and area at indices 3 and 4, in system units.
             // The supplied density affects the returned mass, which is intentionally discarded.

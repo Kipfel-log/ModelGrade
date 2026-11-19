@@ -13,13 +13,21 @@ namespace SWGrade.SolidWorks
 
         public static string SerializeComparison(ModelComparison result) => SerializeReport(result);
 
+        public static string SerializeGeometryProbe(GeometryProbeReport result) => SerializeReport(result);
+
+        internal static GeometryProbeReport ReadGeometryProbe(string path)
+        {
+            var serializer = CreateSerializer<GeometryProbeReport>();
+            using (var stream = File.OpenRead(path))
+                return (GeometryProbeReport)serializer.ReadObject(stream);
+        }
+
         private static string SerializeReport<T>(T result) where T : class
         {
             if (result == null)
                 throw new ArgumentNullException(nameof(result));
 
-            var serializer = new DataContractJsonSerializer(typeof(T),
-                new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
+            var serializer = CreateSerializer<T>();
             using (var stream = new MemoryStream())
             {
                 using (var writer = JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true))
@@ -28,6 +36,9 @@ namespace SWGrade.SolidWorks
                 return Encoding.UTF8.GetString(stream.ToArray());
             }
         }
+
+        private static DataContractJsonSerializer CreateSerializer<T>() =>
+            new DataContractJsonSerializer(typeof(T), new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
 
         public static void SaveNew(string path, string json)
         {

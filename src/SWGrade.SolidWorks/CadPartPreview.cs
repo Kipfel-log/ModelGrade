@@ -39,7 +39,7 @@ namespace SWGrade.SolidWorks
         {
             try
             {
-                var coordinates = Tessellate(cad, body);
+                var coordinates = TessellateBody(cad, body);
                 if (flat)
                     FlatTriangleCoordinates = coordinates;
                 else
@@ -56,18 +56,18 @@ namespace SWGrade.SolidWorks
             }
         }
 
-        private static float[] Tessellate(CadInterop cad, object body)
+        internal static float[] TessellateBody(CadInterop cad, object body)
         {
-            // Use the rebuilt body, not the cached display triangles for the other state.
+            // Tessellate the supplied CAD body directly, including transient Boolean results.
             // https://help.solidworks.com/2020/English/api/sldworksapi/Tessellate_a_Body_Example_CSharp.htm
             const string api = "ITessellation";
             object tessellation = cad.Call("IBody2", body, "GetTessellation", (object)null);
             if (!(bool)cad.Call(api, tessellation, "Tessellate"))
-                throw new InvalidOperationException("CAD 无法对钣金实体生成网格。");
+                throw new InvalidOperationException("CAD 无法对实体生成网格。");
 
             int count = (int)cad.Call(api, tessellation, "GetFacetCount");
             if (count <= 0 || count > 250000)
-                throw new InvalidOperationException("钣金网格的大小超出可预览范围。");
+                throw new InvalidOperationException("实体网格的大小超出可预览范围。");
 
             var coordinates = new float[count * 9];
             var vertices = new Dictionary<int, double[]>();
@@ -77,13 +77,13 @@ namespace SWGrade.SolidWorks
                 ids.Clear();
                 var fins = cad.Call(api, tessellation, "GetFacetFins", facet) as int[];
                 if (fins?.Length != 3)
-                    throw new InvalidOperationException("钣金网格包含无法读取的三角面。");
+                    throw new InvalidOperationException("实体网格包含无法读取的三角面。");
 
                 foreach (int fin in fins)
                 {
                     var edge = cad.Call(api, tessellation, "GetFinVertices", fin) as int[];
                     if (edge?.Length != 2)
-                        throw new InvalidOperationException("钣金网格包含无法读取的边。");
+                        throw new InvalidOperationException("实体网格包含无法读取的边。");
                     foreach (int vertexId in edge)
                         if (!ids.Contains(vertexId))
                             ids.Add(vertexId);
@@ -98,7 +98,7 @@ namespace SWGrade.SolidWorks
                     {
                         point = cad.Call(api, tessellation, "GetVertexPoint", vertexId) as double[];
                         if (point?.Length != 3)
-                            throw new InvalidOperationException("钣金网格缺少顶点坐标。");
+                            throw new InvalidOperationException("实体网格缺少顶点坐标。");
                         vertices.Add(vertexId, point);
                     }
                     for (int axis = 0; axis < 3; axis++)
@@ -106,7 +106,7 @@ namespace SWGrade.SolidWorks
                 }
             }
             if (!IsTriangleArray(coordinates))
-                throw new InvalidOperationException("CAD 返回的钣金网格坐标无效。");
+                throw new InvalidOperationException("CAD 返回的实体网格坐标无效。");
             return coordinates;
         }
 
