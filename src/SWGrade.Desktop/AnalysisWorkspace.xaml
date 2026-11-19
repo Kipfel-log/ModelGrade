@@ -140,7 +140,7 @@
                                 ToolTip="{Binding DatumStatus}"/>
                     </WrapPanel>
                     <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0">
-                        <TextBlock Text="选择两件可对照，仅选当前件可单独分析。" Foreground="{DynamicResource Muted}"
+                        <TextBlock Text="零件的原点或朝向不同，选「按基准对齐」来摆正后再比较。" Foreground="{DynamicResource Muted}"
                                    Margin="0,0,0,10" TextAlignment="Center" TextWrapping="Wrap"/>
                         <Button Content="{Binding AnalyzeLabel}" Command="{Binding AnalyzeCommand}"
                                 Style="{StaticResource PrimaryButton}" MinWidth="230" Margin="0"
@@ -254,8 +254,8 @@
                                                Foreground="{DynamicResource Muted}" Margin="9,0"/>
                                     <Button Content="按原始坐标重新比较" Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
-                                    <Button Content="选择参考件基准…" Command="{Binding ChooseDatumCommand}"
-                                            Visibility="{Binding UsesDatum, Converter={StaticResource VisibleWhenTrue}}"/>
+                                    <Button x:Name="ResultDatumAction" Content="选择基准并对齐…" Command="{Binding ChooseDatumCommand}"
+                                            Visibility="{Binding ShowResultDatumAction, Converter={StaticResource VisibleWhenTrue}}"/>
                                 </WrapPanel>
                                 <local:PartViewport x:Name="SolidViewport" Scene="{Binding Scene}" WorkMessage="{Binding GeometryActivity}"/>
                             </DockPanel>
@@ -380,6 +380,8 @@
                                     <Button x:Name="CloudOriginalCoordinates" Content="按原始坐标重新比较"
                                             Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
+                                    <Button Content="选择基准并对齐…" Command="{Binding ChooseDatumCommand}"
+                                            Visibility="{Binding ShowResultDatumAction, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <Button x:Name="CalculateCloud" Content="计算偏差云图" Command="{Binding CalculateDeviationCommand}"/>
                                 </WrapPanel>
                                 <local:PartViewport x:Name="CloudViewport" IsDeviationView="True" Scene="{Binding Scene}"

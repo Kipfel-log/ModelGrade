@@ -32,19 +32,28 @@ namespace SWGrade.Desktop
         private int resultTab;
         private string trialMessage;
         private AssignmentDatum datum;
+        private readonly Func<string, string, string, AssignmentDatum, Task<AssignmentDatum>> pickDatum;
 
         internal AnalysisViewModel(Window owner, Func<string> expectedYear, ObservableCollection<Assignment> assignments,
             NotificationCenter notices)
+            : this(owner, expectedYear, assignments, notices,
+                (path, config, year, previous) => DatumPicker.PickAsync(owner, path, config, year, previous))
+        {
+        }
+
+        internal AnalysisViewModel(Window owner, Func<string> expectedYear, ObservableCollection<Assignment> assignments,
+            NotificationCenter notices, Func<string, string, string, AssignmentDatum, Task<AssignmentDatum>> pickDatum)
         {
             this.owner = owner;
             this.expectedYear = expectedYear;
             this.notices = notices;
+            this.pickDatum = pickDatum;
             Assignments = assignments;
             Assignments.CollectionChanged += (_, __) => UpdateTrial();
             Reference = new PartInput(owner, this);
             Current = new PartInput(owner, this);
             SwapCommand = new RelayCommand(Swap, () => CanEdit && (Reference.HasPart || Current.HasPart));
-            AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal), () => CanEdit && Current.HasPart);
+            AnalyzeCommand = new RelayCommand(async () => await AnalyzeSelectionAsync(), () => CanEdit && Current.HasPart);
             CheckFlatCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetalMode.RequireFlatPattern, openFlat: true),
                 () => CanEdit && ShowResult && ShowSheetMetal);
             UseOriginalCoordinatesCommand = new RelayCommand(() => GeometryCoordinates = GeometryCoordinates.Original,
@@ -85,14 +94,17 @@ namespace SWGrade.Desktop
             {
                 if (geometryCoordinates == value || !CanEdit)
                     return;
-                geometryCoordinates = value;
-                Notify();
-                Notify(nameof(UsesDatum));
-                if (ShowResult && HasSolidPair)
+                var previous = geometryCoordinates;
+                SetCoordinates(value);
+                if (UsesDatum && datum == null && Reference.HasPart)
+                    _ = PrepareDatumSelectionAsync(previous);
+                else if (ShowResult && HasSolidPair)
                     _ = AnalyzeAsync(SheetMetal, updatingCoordinates: true);
             }
         }
         public bool UsesDatum => GeometryCoordinates == GeometryCoordinates.Datum;
+        public bool ShowResultDatumAction => HasSolidPair && (UsesDatum ||
+            (Scene.Coordinates == GeometryCoordinates.Aligned && Scene.Geometry?.ValidatedComparison != true));
         public bool CanUseAssignmentDatum => SelectedAssignment?.Rules.GeometryCoordinates == GeometryCoordinates.Datum &&
             SelectedAssignment.Rules.Datum?.AppliesTo(Scene?.Reference?.Inspection.DocumentHash,
                 Scene?.Reference?.Inspection.Configuration) == true;
@@ -104,7 +116,7 @@ namespace SWGrade.Desktop
                 Scene.Coordinates == GeometryCoordinates.Datum ?
                     (Scene.Geometry?.ValidatedComparison == true ? "当前结果：已按基准对齐" : "当前结果：基准对齐待复核") :
                 Scene.Geometry?.ValidatedComparison == true ? "当前结果：已验证同形重合" :
-                Scene.OriginalPreview != null ? "对齐未通过 · 原始 CAD 坐标预览" : "当前结果：形状刚体对齐待复核");
+                Scene.OriginalPreview != null ? "两件无法完全重合 · 原始 CAD 坐标预览" : "两件无法完全重合");
         public string GeometryActivity => IsBusy && !string.IsNullOrEmpty(Activity) ? Activity : null;
         public SheetMetalMode SheetMetal { get; set; }
         public int ResultTab { get => resultTab; set { resultTab = value; Notify(); } }
@@ -138,6 +150,7 @@ namespace SWGrade.Desktop
                 Notify(nameof(ResultTitle));
                 Notify(nameof(ShowSheetMetal));
                 Notify(nameof(HasSolidPair));
+                Notify(nameof(ShowResultDatumAction));
                 Notify(nameof(CanRetryOriginalCoordinates));
                 Notify(nameof(CanUseAssignmentDatum));
                 Notify(nameof(CoordinateResultText));
@@ -354,12 +367,19 @@ namespace SWGrade.Desktop
 
         private async Task ChooseDatumAsync()
         {
+            var chosen = await PickDatumAsync();
+            if (chosen != null)
+                await UseDatumAsync(chosen);
+        }
+
+        private async Task<AssignmentDatum> PickDatumAsync()
+        {
             AssignmentDatum chosen = null;
             IsBusy = true;
             Activity = "正在读取参考件的外侧平面…";
             try
             {
-                chosen = await DatumPicker.PickAsync(owner, Reference.SourcePath,
+                chosen = await pickDatum(Reference.SourcePath,
                     Reference.RequestedConfiguration ?? Reference.OpenPart?.Configuration,
                     expectedYear(), datum);
             }
@@ -372,8 +392,33 @@ namespace SWGrade.Desktop
                 Activity = "";
                 IsBusy = false;
             }
-            if (chosen != null)
+            return chosen;
+        }
+
+        private async Task PrepareDatumSelectionAsync(GeometryCoordinates previous)
+        {
+            // Let the combo box finish committing its selection before opening the picker.
+            await Task.Yield();
+            if (!CanEdit || !UsesDatum || datum != null)
+                return;
+
+            var chosen = await PickDatumAsync();
+            if (chosen == null)
+                SetCoordinates(previous);
+            else
                 await UseDatumAsync(chosen);
+        }
+
+        private async Task AnalyzeSelectionAsync()
+        {
+            if (UsesDatum && datum == null && Reference.HasPart)
+            {
+                var chosen = await PickDatumAsync();
+                if (chosen == null)
+                    return;
+                SetDatum(chosen);
+            }
+            await AnalyzeAsync(SheetMetal);
         }
 
         private Task ApplyAssignmentDatumAsync() => UseDatumAsync(SelectedAssignment.Rules.Datum);
@@ -381,10 +426,16 @@ namespace SWGrade.Desktop
         private Task UseDatumAsync(AssignmentDatum chosen)
         {
             SetDatum(chosen);
-            geometryCoordinates = GeometryCoordinates.Datum;
+            SetCoordinates(GeometryCoordinates.Datum);
+            return ShowResult ? AnalyzeAsync(SheetMetal, updatingCoordinates: true) : Task.CompletedTask;
+        }
+
+        private void SetCoordinates(GeometryCoordinates value)
+        {
+            geometryCoordinates = value;
             Notify(nameof(GeometryCoordinates));
             Notify(nameof(UsesDatum));
-            return ShowResult ? AnalyzeAsync(SheetMetal, updatingCoordinates: true) : Task.CompletedTask;
+            Notify(nameof(ShowResultDatumAction));
         }
 
         internal void ShowCloseMessage() =>
@@ -455,9 +506,7 @@ namespace SWGrade.Desktop
             {
                 if (updatingCoordinates && Scene != null)
                 {
-                    geometryCoordinates = Scene.Coordinates;
-                    Notify(nameof(GeometryCoordinates));
-                    Notify(nameof(UsesDatum));
+                    SetCoordinates(Scene.Coordinates);
                 }
                 string reason = CadAnalysis.DescribeError(exception);
                 Diagnostics += reason + Environment.NewLine;

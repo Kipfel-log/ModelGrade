@@ -16,8 +16,8 @@ namespace SWGrade.Desktop
         internal static GeometryCoordinateChoice[] Choices { get; } =
         {
             new GeometryCoordinateChoice(GeometryCoordinates.Original, "原始 CAD 坐标"),
-            new GeometryCoordinateChoice(GeometryCoordinates.Aligned, "同形重合验证"),
-            new GeometryCoordinateChoice(GeometryCoordinates.Datum, "按基准对齐")
+            new GeometryCoordinateChoice(GeometryCoordinates.Datum, "按基准对齐"),
+            new GeometryCoordinateChoice(GeometryCoordinates.Aligned, "仅验证完全重合")
         };
     }
 }
