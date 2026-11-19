@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SWGrade.Domain;
 
 namespace SWGrade.SolidWorks
@@ -11,6 +12,7 @@ namespace SWGrade.SolidWorks
         public string PreviewIssue { get; internal set; }
         public float[] FlatTriangleCoordinates { get; private set; }
         public string FlatPreviewIssue { get; private set; }
+        public double[] FlatNormal { get; private set; }
 
         internal void ReadMesh(CadInterop interop, object part)
         {
@@ -41,7 +43,14 @@ namespace SWGrade.SolidWorks
             {
                 var coordinates = TessellateBody(cad, body);
                 if (flat)
+                {
                     FlatTriangleCoordinates = coordinates;
+                    try { FlatNormal = FindFlatNormal(cad, body); }
+                    catch (Exception exception)
+                    {
+                        cad.Log("展开件的正视法向未核实：" + CadAnalysis.DescribeError(exception));
+                    }
+                }
                 else
                     TriangleCoordinates = coordinates;
             }
@@ -56,12 +65,51 @@ namespace SWGrade.SolidWorks
             }
         }
 
-        internal static float[] TessellateBody(CadInterop cad, object body)
+        private static double[] FindFlatNormal(CadInterop cad, object body)
+        {
+            var planes = new List<(double[] Direction, double Area)>();
+            var faces = cad.Call("IBody2", body, "GetFaces") as Array;
+            if (faces == null)
+                return null;
+            foreach (object face in faces)
+            {
+                var surface = cad.Call("IFace2", face, "GetSurface");
+                if (!(bool)cad.Call("ISurface", surface, "IsPlane") ||
+                    !(cad.Get("IFace2", face, "Normal") is double[] normal) || normal.Length != 3)
+                    continue;
+                double length = Math.Sqrt(normal.Sum(value => value * value));
+                double area = (double)cad.Call("IFace2", face, "GetArea");
+                if (!(length > 0) || double.IsInfinity(length) || !(area > 0) || double.IsInfinity(area))
+                    continue;
+                for (int axis = 0; axis < 3; axis++)
+                    normal[axis] /= length;
+                int group = planes.FindIndex(item => Math.Abs(item.Direction[0] * normal[0] +
+                    item.Direction[1] * normal[1] + item.Direction[2] * normal[2]) >= 0.99999);
+                if (group < 0)
+                    planes.Add((normal, area));
+                else
+                    planes[group] = (planes[group].Direction, planes[group].Area + area);
+            }
+            var largest = planes.OrderByDescending(plane => plane.Area).Take(2).ToArray();
+            if (largest.Length == 0 || (largest.Length > 1 && largest[1].Area >= largest[0].Area * 0.8))
+                return null;
+            var best = largest[0].Direction;
+            int main = Enumerable.Range(0, 3).OrderByDescending(axis => Math.Abs(best[axis])).First();
+            return best[main] < 0 ? best.Select(value => -value).ToArray() : best;
+        }
+
+        internal static float[] TessellateBody(CadInterop cad, object body, double facetWidth = 0,
+            Action<object, double[], int> sample = null)
         {
             // Tessellate the supplied CAD body directly, including transient Boolean results.
             // https://help.solidworks.com/2020/English/api/sldworksapi/Tessellate_a_Body_Example_CSharp.htm
             const string api = "ITessellation";
             object tessellation = cad.Call("IBody2", body, "GetTessellation", (object)null);
+            if (sample != null)
+            {
+                cad.Set(api, tessellation, "NeedFaceFacetMap", true);
+                cad.Set(api, tessellation, "MaxFacetWidth", facetWidth);
+            }
             if (!(bool)cad.Call(api, tessellation, "Tessellate"))
                 throw new InvalidOperationException("CAD 无法对实体生成网格。");
 
@@ -91,6 +139,7 @@ namespace SWGrade.SolidWorks
                 if (ids.Count != 3)
                     throw new InvalidOperationException("CAD 返回的三角面顶点数量异常。");
 
+                object face = sample == null ? null : cad.Call(api, tessellation, "GetFacetFace", facet);
                 for (int index = 0; index < ids.Count; index++)
                 {
                     int vertexId = ids[index];
@@ -103,6 +152,7 @@ namespace SWGrade.SolidWorks
                     }
                     for (int axis = 0; axis < 3; axis++)
                         coordinates[facet * 9 + index * 3 + axis] = (float)point[axis];
+                    sample?.Invoke(face, point, facet * 3 + index);
                 }
             }
             if (!IsTriangleArray(coordinates))

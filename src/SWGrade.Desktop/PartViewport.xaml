@@ -7,13 +7,31 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <WrapPanel Margin="0,0,0,10">
-            <Button x:Name="OverlayButton" Content="叠加差异" Click="ShowOverlay"/>
-            <Button x:Name="CurrentButton" Content="当前件" Click="ShowCurrent"/>
-            <Button x:Name="ReferenceButton" Content="参考件" Click="ShowReference"/>
-            <Button x:Name="ResetButton" Content="重置视角" Click="ResetView"/>
-            <CheckBox x:Name="DifferencesOnly" Content="仅看差异" Click="ToggleShared" VerticalAlignment="Center"/>
-        </WrapPanel>
+        <StackPanel Margin="0,0,0,10">
+            <WrapPanel>
+                <Button x:Name="OverlayButton" Content="完整叠加" Click="ShowOverlay"/>
+                <Button x:Name="CurrentButton" Content="当前件" Click="ShowCurrent"/>
+                <Button x:Name="ReferenceButton" Content="参考件" Click="ShowReference"/>
+                <Button x:Name="ResetButton" Content="重置视角" Click="ResetView"/>
+                <ComboBox x:Name="StandardViews" AutomationProperties.Name="标准视图" MinWidth="100"
+                          Loaded="InitializeStandardViews" SelectionChanged="SelectStandardView">
+                    <ComboBoxItem Content="标准视图" IsEnabled="False"/>
+                    <ComboBoxItem Content="正视"/>
+                    <ComboBoxItem Content="俯视"/>
+                    <ComboBoxItem Content="侧视"/>
+                    <ComboBoxItem Content="等轴测"/>
+                </ComboBox>
+            </WrapPanel>
+            <WrapPanel Margin="0,6,0,0">
+                <WrapPanel x:Name="SolidControls" Visibility="Collapsed">
+                    <Button x:Name="ExtraButton" Content="仅多余" Click="ShowExtra"/>
+                    <Button x:Name="MissingButton" Content="仅缺少" Click="ShowMissing"/>
+                    <CheckBox x:Name="TransparentReference" Content="透明参考件" Click="ToggleShared"
+                              Margin="0,0,9,0" VerticalAlignment="Center"/>
+                </WrapPanel>
+                <CheckBox x:Name="DifferencesOnly" Content="仅看差异" Click="ToggleShared" VerticalAlignment="Center"/>
+            </WrapPanel>
+        </StackPanel>
         <Border x:Name="Surface" Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource Line}"
                 Background="{DynamicResource ViewportSurface}" CornerRadius="6" ClipToBounds="True"
                 MouseDown="BeginMove" MouseUp="EndMove" MouseMove="Move" MouseWheel="Zoom"
@@ -47,12 +65,12 @@
                     <TextBlock Text="重叠"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <Ellipse Width="10" Height="10" Fill="#2E6CB6" Margin="0,0,6,0"/>
-                    <TextBlock Text="当前件有差异"/>
+                    <Ellipse Width="10" Height="10" Fill="#BA382F" Margin="0,0,6,0"/>
+                    <TextBlock Text="学生件多余"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="10" Height="10" Fill="#C86423" Margin="0,0,6,0"/>
-                    <TextBlock Text="参考件有差异"/>
+                    <Ellipse Width="10" Height="10" Fill="#2567BC" Margin="0,0,6,0"/>
+                    <TextBlock Text="学生件缺少"/>
                 </StackPanel>
             </WrapPanel>
             <TextBlock x:Name="GeometryNotice" Foreground="{DynamicResource Muted}" FontSize="13"
