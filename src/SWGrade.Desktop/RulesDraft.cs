@@ -42,6 +42,7 @@ namespace SWGrade.Desktop
             CadYear = rules.ExpectedCadYear ?? "自动识别";
             mode = rules.Mode;
             SheetMetal = rules.SheetMetal;
+            GeometryCoordinates = rules.GeometryCoordinates;
             checkProcess = mode == GradingMode.ProcessRequired ||
                 (rules.FeaturesWeight > 0 && rules.RequiredFeatureTypes.Count > 0);
             GeometryPolicy = rules.GeometryPolicy == Domain.GeometryPolicy.Bands ? "分档" :
@@ -157,6 +158,8 @@ namespace SWGrade.Desktop
             }
         }
         public string GeometryPolicy { get; set; }
+        public GeometryCoordinates GeometryCoordinates { get; set; }
+        public GeometryCoordinateChoice[] GeometryCoordinateChoices => GeometryCoordinateChoice.Choices;
         public SheetMetalMode SheetMetal { get; set; }
         public RuleNumber Geometry { get; }
         public RuleNumber Parameters { get; }
@@ -239,7 +242,7 @@ namespace SWGrade.Desktop
             {
                 var messages = new List<string>();
                 if (GeometryPending)
-                    messages.Add("几何自动确认仅限已验证的同一保存版本与配置。其他提交的几何权重留给人工复核。");
+                    messages.Add("实体比较或对齐无法验证时，几何分值将留给人工复核。");
                 if (FeaturesPending)
                     messages.Add("尚未指定特征类型，特征权重将留给人工复核。");
                 return string.Join(" ", messages);
@@ -319,6 +322,7 @@ namespace SWGrade.Desktop
                 Mode = mode,
                 SheetMetal = SheetMetal,
                 GeometryPolicy = policy,
+                GeometryCoordinates = GeometryCoordinates,
                 GeometryWeight = Geometry.Read(),
                 ParametersWeight = Parameters.Read(),
                 FeaturesWeight = Features.Read(),

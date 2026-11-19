@@ -198,8 +198,12 @@ namespace SWGrade.Application
 
                 submission.StandardModel = standard;
                 submission.StudentModel = student;
-                submission.Grade = engine.Evaluate(assignment.Rules, standard, student,
-                    SavedGeometry.CompareIdenticalSnapshot(standard, student), submission.ConfigurationOverride);
+                var rules = assignment.Rules;
+                var geometry = SavedGeometry.CompareIdenticalSnapshot(standard, student, rules.GeometryCoordinates);
+                if (!geometry.ValidatedComparison && rules.GeometryWeight > 0 && rules.GeometryPolicy != GeometryPolicy.TeacherReview &&
+                    reader is IGeometryComparer comparer)
+                    geometry = await comparer.CompareAsync(standard, student, rules.GeometryCoordinates, diagnostics.Add);
+                submission.Grade = engine.Evaluate(rules, standard, student, geometry, submission.ConfigurationOverride);
                 submission.State = submission.Grade.NeedsReview ? TaskState.NeedsReview : TaskState.Completed;
                 submission.StatusDetail = submission.Grade.NeedsReview ? "已有可评估证据，待核对未评估项。" : "已完成全部计分检查。";
             }

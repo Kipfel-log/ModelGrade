@@ -90,6 +90,12 @@ namespace SWGrade.Application
             SheetMetalMode sheetMetal = SheetMetalMode.Automatic);
     }
 
+    public interface IGeometryComparer
+    {
+        Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
+            GeometryCoordinates coordinates, Action<string> report);
+    }
+
     public static class Clock
     {
         public static string UtcNow() => DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);

@@ -46,6 +46,8 @@ namespace SWGrade.Desktop
             AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal), () => CanEdit && Current.HasPart);
             CheckFlatCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetalMode.RequireFlatPattern, openFlat: true),
                 () => CanEdit && ShowResult && ShowSheetMetal);
+            ApplyCoordinatesCommand = new RelayCommand(async () => await AnalyzeAsync(SheetMetal),
+                () => CanEdit && ShowResult && Scene?.Reference != null);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
             CopyCommand = new RelayCommand(Copy, () => CanEdit && Scene != null);
             ExportCommand = new RelayCommand(Export, () => CanEdit && Scene != null);
@@ -58,15 +60,19 @@ namespace SWGrade.Desktop
         public ICommand SwapCommand { get; }
         public ICommand AnalyzeCommand { get; }
         public ICommand CheckFlatCommand { get; }
+        public ICommand ApplyCoordinatesCommand { get; }
         public ICommand BackCommand { get; }
         public ICommand CopyCommand { get; }
         public ICommand ExportCommand { get; }
         public bool CanEdit => !IsBusy;
         public string AnalyzeLabel => Reference.HasPart ? "开始对照 →" : "分析当前件 →";
         public SheetMetalOption[] SheetMetalOptions => SheetMetalOption.Choices;
+        public GeometryCoordinateChoice[] GeometryCoordinateChoices => GeometryCoordinateChoice.Choices;
+        public GeometryCoordinates GeometryCoordinates { get; set; }
         public SheetMetalMode SheetMetal { get; set; }
         public int ResultTab { get => resultTab; set { resultTab = value; Notify(); } }
         public bool ShowSheetMetal => Scene?.HasSheetMetal == true;
+        public bool HasSolidPair => Scene?.Reference != null && !Scene.HasSheetMetal;
         public string FoldedTabTitle => !ShowSheetMetal ? "三维叠加" :
             (Scene.Current.Inspection.SheetMetal?.FoldedVerified == true &&
                 (Scene.Reference == null || Scene.Reference.Inspection.SheetMetal?.FoldedVerified == true))
@@ -88,6 +94,7 @@ namespace SWGrade.Desktop
                 Notify();
                 Notify(nameof(ResultTitle));
                 Notify(nameof(ShowSheetMetal));
+                Notify(nameof(HasSolidPair));
                 Notify(nameof(FoldedTabTitle));
                 Notify(nameof(Details));
                 Notify(nameof(ParameterRows));
@@ -133,7 +140,8 @@ namespace SWGrade.Desktop
                 {
                     try
                     {
-                        trialGrade = TrialGrading.Evaluate(SelectedAssignment, Scene.Reference.Inspection, Scene.Current.Inspection);
+                        trialGrade = TrialGrading.Evaluate(SelectedAssignment, Scene.Reference.Inspection,
+                            Scene.Current.Inspection, Scene.Geometry);
                         trialMessage = trialGrade.FinalAutoScore.HasValue
                             ? $"自动得分 {ReportExporter.Score(trialGrade.FinalAutoScore)} / 100"
                             : trialGrade.EvaluatedPoints == 0 ? "暂无可评估条目，100 分待复核。"
@@ -307,11 +315,27 @@ namespace SWGrade.Desktop
                 IProgress<string> progress = new Progress<string>(line => Diagnostics += line + Environment.NewLine);
                 var reference = Reference.HasPart ? await Reference.ReadAsync(version, progress.Report, mode) : null;
                 var current = await Current.ReadAsync(version, progress.Report, mode);
+                var result = new AnalysisScene(reference, current, mode);
+                if (reference != null)
+                {
+                    var standard = reference.Inspection;
+                    var student = current.Inspection;
+                    bool configured = standard.Configuration == student.Configuration ||
+                        (Reference.RequestedConfiguration != null && Current.RequestedConfiguration != null);
+                    if (!result.HasSheetMetal && configured)
+                    {
+                        Activity = "正在计算 SOLIDWORKS 实体差集…";
+                        result.SolidComparison = await CadGeometryComparison.CompareAsync(standard, student,
+                            GeometryCoordinates, true, progress.Report);
+                    }
+                    result.Geometry = result.SolidComparison?.EvidenceFor(standard, student) ??
+                        SavedGeometry.CompareIdenticalSnapshot(standard, student, GeometryCoordinates);
+                }
                 report = reference == null ? null :
                     ModelComparison.Evaluate(reference.Inspection, current.Inspection,
-                        Reference.RequestedConfiguration, Current.RequestedConfiguration, mode);
+                        Reference.RequestedConfiguration, Current.RequestedConfiguration, mode, result.Geometry);
 
-                Scene = new AnalysisScene(reference, current, mode);
+                Scene = result;
                 if (openFlat)
                     ResultTab = 1;
                 ShowResult = true;
@@ -538,5 +562,7 @@ namespace SWGrade.Desktop
 
         internal CadPartPreview Reference { get; }
         internal CadPartPreview Current { get; }
+        internal GeometryProbeReport SolidComparison { get; set; }
+        internal GeometryEvidence Geometry { get; set; }
     }
 }

@@ -29,6 +29,57 @@ namespace SWGrade.SolidWorks
         [DataMember] public double? DifferenceRatio { get; internal set; }
         [DataMember] public bool Measured { get; internal set; }
         [DataMember] public string ReviewReason { get; internal set; }
+
+        public GeometryEvidence EvidenceFor(ModelInspectionResult reference, ModelInspectionResult student)
+        {
+            bool matches = SameSnapshot(Reference, reference) && SameSnapshot(Student, student);
+            bool aligned = Alignment != GeometryProbeAlignment.OriginalCoordinates;
+            bool verified = Measured && matches &&
+                (Alignment == GeometryProbeAlignment.OriginalCoordinates || AlignmentState == "CoincidenceVerified");
+            return new GeometryEvidence
+            {
+                ValidatedComparison = verified,
+                Source = "SolidWorksBRep",
+                Coordinates = aligned ? GeometryCoordinates.Aligned : GeometryCoordinates.Original,
+                ReferenceVolumeM3 = ReferenceVolumeM3,
+                StudentVolumeM3 = StudentVolumeM3,
+                MissingVolumeM3 = Missing?.VolumeM3,
+                ExtraVolumeM3 = Extra?.VolumeM3,
+                OverlapVolumeM3 = Overlap?.VolumeM3,
+                ReferenceHash = Reference?.DocumentHash,
+                StudentHash = Student?.DocumentHash,
+                ReferenceConfiguration = Reference?.Configuration,
+                StudentConfiguration = Student?.Configuration,
+                CadRevision = CadRevision,
+                AlignmentState = AlignmentState,
+                StudentToReferenceTransform = StudentToReferenceTransform,
+                Missing = CopyOperation(Missing),
+                Extra = CopyOperation(Extra),
+                Overlap = CopyOperation(Overlap),
+                Reason = verified ? "SOLIDWORKS 实体差集与交集已通过体积守恒核对。" :
+                    ReviewReason ?? "实体比较与本次读取的文件、配置或 CAD 修订版不一致。"
+            };
+        }
+
+        private static bool SameSnapshot(ModelInspectionResult fromComparison, ModelInspectionResult fromInspection) =>
+            fromComparison?.SourceIntegrityVerified == true && fromInspection?.SourceIntegrityVerified == true &&
+            string.Equals(fromComparison.DocumentHash, fromInspection.DocumentHash, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(fromComparison.Configuration, fromInspection.Configuration, StringComparison.Ordinal) &&
+            string.Equals(fromComparison.SolidWorksRevision, fromInspection.SolidWorksRevision, StringComparison.Ordinal) &&
+            fromComparison.VolumeM3.HasValue && fromInspection.VolumeM3.HasValue &&
+            GeometryProbeValidation.EqualVolumes(fromComparison.VolumeM3.Value, fromInspection.VolumeM3.Value);
+
+        private static GeometryOperationEvidence CopyOperation(GeometryProbeOperation operation) => operation == null ? null :
+            new GeometryOperationEvidence
+            {
+                State = operation.State,
+                ErrorCode = operation.ErrorCode,
+                ErrorName = operation.ErrorName,
+                ReturnedValue = operation.ReturnedValue,
+                BodyCount = operation.BodyCount,
+                VolumeM3 = operation.VolumeM3,
+                Reason = operation.Reason
+            };
     }
 
     [DataContract]

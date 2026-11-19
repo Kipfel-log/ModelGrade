@@ -5,7 +5,8 @@ namespace SWGrade.Application
 {
     public static class TrialGrading
     {
-        public static GradeResult Evaluate(Assignment assignment, ModelInspectionResult reference, ModelInspectionResult current)
+        public static GradeResult Evaluate(Assignment assignment, ModelInspectionResult reference, ModelInspectionResult current,
+            GeometryEvidence geometry = null)
         {
             if (assignment == null)
                 throw new ArgumentNullException(nameof(assignment));
@@ -22,7 +23,7 @@ namespace SWGrade.Application
                 throw new InvalidOperationException($"作业匹配学生配置「{expectedConfiguration}」。请选用该配置重新分析，或在批量页面为该学生手动指定配置。");
 
             return new GradingEngine().Evaluate(rules, reference, current,
-                SavedGeometry.CompareIdenticalSnapshot(reference, current));
+                geometry ?? SavedGeometry.CompareIdenticalSnapshot(reference, current, rules.GeometryCoordinates));
         }
     }
 }

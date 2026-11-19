@@ -23,9 +23,34 @@ namespace SWGrade.Domain
     public sealed class GeometryEvidence
     {
         public bool ValidatedComparison { get; set; }
+        public string Source { get; set; }
+        public GeometryCoordinates Coordinates { get; set; }
         public double? ReferenceVolumeM3 { get; set; }
+        public double? StudentVolumeM3 { get; set; }
         public double? MissingVolumeM3 { get; set; }
         public double? ExtraVolumeM3 { get; set; }
+        public double? OverlapVolumeM3 { get; set; }
+        public string ReferenceHash { get; set; }
+        public string StudentHash { get; set; }
+        public string ReferenceConfiguration { get; set; }
+        public string StudentConfiguration { get; set; }
+        public string CadRevision { get; set; }
+        public string AlignmentState { get; set; }
+        public double[] StudentToReferenceTransform { get; set; }
+        public GeometryOperationEvidence Missing { get; set; }
+        public GeometryOperationEvidence Extra { get; set; }
+        public GeometryOperationEvidence Overlap { get; set; }
+        public string Reason { get; set; }
+    }
+
+    public sealed class GeometryOperationEvidence
+    {
+        public string State { get; set; }
+        public int? ErrorCode { get; set; }
+        public string ErrorName { get; set; }
+        public int? BodyCount { get; set; }
+        public string ReturnedValue { get; set; }
+        public double? VolumeM3 { get; set; }
         public string Reason { get; set; }
     }
 

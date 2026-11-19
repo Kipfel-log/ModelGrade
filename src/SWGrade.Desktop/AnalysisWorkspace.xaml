@@ -132,6 +132,9 @@
                         <ComboBox x:Name="SheetMetalMode" MinWidth="175"
                                   ItemsSource="{Binding SheetMetalOptions}" DisplayMemberPath="Label" SelectedValuePath="Mode"
                                   SelectedValue="{Binding SheetMetal, Mode=TwoWay}"/>
+                        <Label Content="比较坐标" Target="{Binding ElementName=ComparisonCoordinates}" Padding="16,5,9,5"/>
+                        <ComboBox x:Name="ComparisonCoordinates" MinWidth="146" ItemsSource="{Binding GeometryCoordinateChoices}"
+                                  SelectedValuePath="Value" DisplayMemberPath="Label" SelectedValue="{Binding GeometryCoordinates}"/>
                     </WrapPanel>
                     <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0">
                         <TextBlock Text="选择两件可对照，仅选当前件可单独分析。" Foreground="{DynamicResource Muted}"
@@ -237,7 +240,16 @@
                 <Border Grid.Column="2" Style="{StaticResource Panel}" Padding="12">
                     <TabControl Padding="7" SelectedIndex="{Binding ResultTab, Mode=TwoWay}">
                         <TabItem Header="{Binding FoldedTabTitle}">
-                            <local:PartViewport Scene="{Binding Scene}"/>
+                            <DockPanel>
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8"
+                                           Visibility="{Binding HasSolidPair, Converter={StaticResource VisibleWhenTrue}}">
+                                    <ComboBox ItemsSource="{Binding GeometryCoordinateChoices}" DisplayMemberPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding GeometryCoordinates}"
+                                              AutomationProperties.Name="实体比较坐标" MinWidth="146"/>
+                                    <Button Content="按此坐标比较" Command="{Binding ApplyCoordinatesCommand}" Margin="7,0,0,0"/>
+                                </WrapPanel>
+                                <local:PartViewport Scene="{Binding Scene}"/>
+                            </DockPanel>
                         </TabItem>
                         <TabItem Header="展开图" Visibility="{Binding ShowSheetMetal, Converter={StaticResource VisibleWhenTrue}}">
                             <DockPanel>

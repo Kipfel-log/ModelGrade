@@ -24,8 +24,12 @@ namespace SWGrade.Domain
 
         public IReadOnlyList<GradeCheck> Checks => Evidence;
 
+        [DataMember(Name = "geometry", EmitDefaultValue = false)]
+        public GeometryEvidence Geometry { get; private set; }
+
         public static ModelComparison Evaluate(ModelInspectionResult reference, ModelInspectionResult current,
-            string referenceConfiguration, string currentConfiguration, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)
+            string referenceConfiguration, string currentConfiguration, SheetMetalMode sheetMetal = SheetMetalMode.Automatic,
+            GeometryEvidence geometry = null)
         {
             if (reference == null)
                 throw new ArgumentNullException(nameof(reference));
@@ -64,10 +68,16 @@ namespace SWGrade.Domain
                 report.Evidence.Add(Review("零件级材料", problem ?? "至少一个零件未取得零件级材料。"));
             }
 
-            var geometry = SavedGeometry.CompareIdenticalSnapshot(reference, current);
+            geometry = geometry ?? SavedGeometry.CompareIdenticalSnapshot(reference, current);
+            report.Geometry = geometry;
             report.Evidence.Add(geometry.ValidatedComparison && problem == null
-                ? new GradeCheck { Name = "几何差异", Status = CheckStatus.Pass, Reason = geometry.Reason }
-                : Review("几何差异", geometry.Reason));
+                ? new GradeCheck
+                {
+                    Name = "几何差异",
+                    Status = geometry.MissingVolumeM3 == 0 && geometry.ExtraVolumeM3 == 0 ? CheckStatus.Pass : CheckStatus.Fail,
+                    Reason = geometry.Reason
+                }
+                : Review("几何差异", problem ?? geometry.Reason));
             if (SheetMetalComparison.Required(sheetMetal, reference, current, adHoc: true))
                 report.Evidence.Add(SheetMetalComparison.Check(rules, reference, current, problem));
             return report;

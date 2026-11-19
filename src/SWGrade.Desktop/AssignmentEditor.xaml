@@ -157,14 +157,18 @@
                                             Visibility="{Binding Draft.CheckMass, Converter={StaticResource WhenTrue}}"/>
 
                             <TextBlock Text="几何与特征规则" Style="{StaticResource SectionTitle}" Margin="0,9,0,9"/>
-                            <TextBlock Text="不同文件内容的形状差异由教师复核。可为有可靠证据的比较预先设置计分规则。"
+                            <Label Content="几何比较坐标" Target="{Binding ElementName=GeometryCoordinates}" Padding="0,0,0,5"/>
+                            <ComboBox x:Name="GeometryCoordinates" ItemsSource="{Binding Draft.GeometryCoordinateChoices}"
+                                      DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Draft.GeometryCoordinates}"
+                                      Margin="0,0,0,5"/>
+                            <TextBlock Text="考核孔位或建模基准时使用原始 CAD 坐标。形状对齐只接受经实体重合验证的刚体变换。"
                                        Style="{StaticResource HelpText}"/>
                             <Label Content="几何评分策略" Target="{Binding ElementName=GeometryStrategy}" Padding="0,0,0,5"/>
                             <ComboBox x:Name="GeometryStrategy" ItemsSource="{Binding GeometryPolicies}" SelectedItem="{Binding Draft.GeometryPolicy}"
                                       Margin="0,0,0,9"/>
                             <Label Content="几何差异率容差（%）" Target="{Binding ElementName=GeometryThreshold}" Padding="0,0,0,5"/>
                             <TextBox x:Name="GeometryThreshold" Text="{Binding Draft.GeometryTolerancePercent, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,0,10" ToolTip="超过该差异率时几何不通过。等实际几何比较接入后用于自动计算。"/>
+                                     Margin="0,0,0,10" ToolTip="超过该差异率时几何不通过。"/>
                             <Label Content="分档规则（仅在选择分档时生效）" Target="{Binding ElementName=GeometryBands}" Padding="0,0,0,5"/>
                             <TextBox x:Name="GeometryBands" Text="{Binding Draft.Bands, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" MinLines="2" TextWrapping="Wrap" Margin="0,0,0,3"/>

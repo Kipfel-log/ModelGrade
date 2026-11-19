@@ -8,6 +8,7 @@
     <Compile Include="../../src/SWGrade.Desktop/NotificationCenter.cs" Link="Desktop/NotificationCenter.cs" />
     <Compile Include="../../src/SWGrade.Desktop/RuleNumber.cs" Link="Desktop/RuleNumber.cs" />
     <Compile Include="../../src/SWGrade.Desktop/RulesDraft.cs" Link="Desktop/RulesDraft.cs" />
+    <Compile Include="../../src/SWGrade.Desktop/GeometryCoordinateChoice.cs" Link="Desktop/GeometryCoordinateChoice.cs" />
     <ProjectReference Include="../../src/SWGrade.Infrastructure/SWGrade.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

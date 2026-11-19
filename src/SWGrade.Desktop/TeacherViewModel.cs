@@ -664,8 +664,15 @@ namespace SWGrade.Desktop
 
         public void Dispose() => store?.Dispose();
 
-        private sealed class CadReader : IModelReader
+        private sealed class CadReader : IModelReader, IGeometryComparer
         {
+            public async Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
+                GeometryCoordinates coordinates, Action<string> report)
+            {
+                var comparison = await CadGeometryComparison.CompareAsync(reference, student, coordinates, false, report);
+                return comparison.EvidenceFor(reference, student);
+            }
+
             public Task<PartConfigurations> ReadConfigurationsAsync(string path, string cadYear, Action<string> report) =>
                 StaWorker.Run(() => CadAnalysis.ReadConfigurations(path, cadYear, report));
 
