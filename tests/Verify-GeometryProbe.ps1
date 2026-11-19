@@ -24,12 +24,23 @@ $work = Join-Path ([System.IO.Path]::GetTempPath()) ('SWGrade-Geometry-' + [guid
 [void][System.IO.Directory]::CreateDirectory($work)
 Write-Host "Stage A logs and real CAD evidence: $work"
 
+function Get-SharedFileHash([string] $path) {
+    # SOLIDWORKS can hold an open source part with write access.
+    $stream = [System.IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
+    try {
+        (Get-FileHash -InputStream $stream -Algorithm SHA256).Hash
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 $originals = @{}
 foreach ($path in @($referencePath, $equivalentPath, $holePath, $Translated, $Rotated)) {
     if ($path) {
         $file = Get-Item -LiteralPath $path
         $originals[$file.FullName] = @{
-            Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+            Hash = Get-SharedFileHash $file.FullName
             WriteTime = $file.LastWriteTimeUtc
         }
     }
@@ -119,7 +130,7 @@ try {
 finally {
     foreach ($path in $originals.Keys) {
         $file = Get-Item -LiteralPath $path
-        if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $originals[$path].Hash -or
+        if ((Get-SharedFileHash $path) -ine $originals[$path].Hash -or
             $file.LastWriteTimeUtc -ne $originals[$path].WriteTime) {
             throw "The source file changed during testing: $path"
         }

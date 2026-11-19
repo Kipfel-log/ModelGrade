@@ -35,7 +35,8 @@ $probe = '.\src\SWGrade.Probe\bin\x64\Release\net48\SWGrade.Probe.exe'
 使用 `--transform-report` 选择修改前成功对齐的 JSON。此参数启用 `reuse` 模式。报告须具备 `CoincidenceVerified` 状态、零差异和完整的交集体积。参考件的文件内容和配置需与报告一致，学生件采用原配置。显式选择报告表示本次学生件仍采用校准时的放置方式。加孔等编辑可以改变学生文件哈希。探针默认读取报告记录的配置，也会检查显式提供的配置。
 
 ```powershell
-.\SWGrade.GeometryProbe.exe --geometry --expect 2026 `
+$probe = '.\src\SWGrade.Probe\bin\x64\Release\net48\SWGrade.Probe.exe'
+& $probe --geometry --expect 2026 `
     --reference '.\test1.SLDPRT' --student '.\test.SLDPRT' `
     --transform-report '.\geometry-before-hole.json' --json '.\geometry-hole-diff.json'
 ```
@@ -68,12 +69,12 @@ $probe = '.\src\SWGrade.Probe\bin\x64\Release\net48\SWGrade.Probe.exe'
 
 | 检查 | 结果 |
 | --- | --- |
-| Windows x64 / .NET Framework 4.8 Release | Linux 交叉构建通过，0 警告和 0 错误。 |
+| Windows x64 / .NET Framework 4.8 Release | Linux 交叉构建和 Windows 本机 Release 构建均通过，0 警告和 0 错误。 |
 | `CloudChecks` | 47 项通过，含差集空结果、体积守恒、刚体矩阵、报告复用及不匹配的纯逻辑测试。 |
 | `WorkflowChecks` | 97 项通过，涵盖原有评分、记录和导出流程，此处的 CAD 读取为模拟后端。 |
 | CLI 失败路径 | Linux 上有效实验命令返回 3 且无结果文件。缺少网格输出路径、缺少复用所需的报告或同时选择互斥模式均返回 2。 |
-| SOLIDWORKS 2026（Windows 11） | 用户真机完成四组对照。原始坐标取得非零差集，同文件同配置和不同文件同实体均确认零差异，同形异位样本对齐后确认重合。 |
-| 剩余控制样本及 SOLIDWORKS 2025 | 已知移动孔位、非对称模型的独立旋转对照及 2025 运行均待验证。 |
+| SOLIDWORKS 2026（Windows 11） | 除用户完成的四组对照外，已通过偏心孔板的同文件、不同文件同实体、移孔、原坐标平移、平移对齐、非对称旋转对齐以及增孔后的放置复用测试。 |
+| 剩余验收 | SOLIDWORKS 2025、相切与不相交边界、完整批改及批量资源检查待验收。 |
 
 ### 2026-11-19 · Windows 11 / SOLIDWORKS 2026
 
@@ -110,6 +111,21 @@ $probe = '.\src\SWGrade.Probe\bin\x64\Release\net48\SWGrade.Probe.exe'
 
 随后分别以每个模型对自身做布尔交集并导出了完整外形网格。两份报告均确认自对照零差异。网格核查确认参考件是约 `297 × 210 × 210 mm` 的无孔长方体。增孔版本外形尺寸相同，原始坐标轴次序和原点位置不同。圆柱网格两端在学生件的 `X≈0` 和 `X≈210 mm`，圆心约为 `Y=237 mm，Z=50 mm`，拟合直径约 `40 mm`。该圆柱的计算体积与 CAD 的减材体积一致。使用增孔前已验证的刚体变换核对网格，两件的外框及八个外角重合，孔轴转换为参考件的 Y 方向，横截面圆心约为 `X=88.5 mm，Z=55 mm`。
 
-本例已验证单件网格导出以及有错位且有局部差异时的待复核行为。现已接入放置报告复用模式，仍需真机执行有孔件的双向差集。按已观察的几何预期，正确放置后参考侧缺失约 `263.894 cm³`、学生侧多余为零、差异率约为 `2.015%`。这些是预期值。已知移动孔位的两侧非零差集样本也待复验。
+本例已验证单件网格导出以及有错位且有局部差异时的待复核行为。这对用户样本在复用放置矩阵后的预期缺失量约为 `263.894 cm³`，多余量为零，差异率约为 `2.015%`，仍需对这对文件实测。
+
+#### 偏心孔板控制样本
+
+在 Windows 11 26H2 x64（build 26300.9974）与 SOLIDWORKS 2026 SP2.1（修订版 `34.2.1`）上额外创建并保存六份无外部引用的单实体零件，配置均为「默认」。基准为 40 × 30 × 4 mm、带一处偏心 Ø4 mm 通孔的矩形板。运行 `Verify-GeometryProbe.ps1` 时，参考件本身保持在 CAD 中打开。
+
+| 检查 | 缺失（mm³） | 多余（mm³） | 结果 |
+| --- | ---: | ---: | --- |
+| 同文件、不同文件同实体 | 0 | 0 | 两组均确认零差异 |
+| Ø4 mm 通孔移动至不重叠的位置 | 50.265482 | 50.265482 | 两个差集均与独立计算的圆柱体积一致 |
+| 沿 X 轴平移 5 mm，使用原始坐标 | 650.265482 | 650.265482 | 两侧均检测到差异 |
+| 平移对齐、绕 Z 轴旋转 37° 并平移后对齐 | 0 | 0 | 两组均为 `CoincidenceVerified` |
+| 保持旋转件放置方式再增一个 Ø3 mm 通孔，使用整件重合 | — | — | `AwaitingCoincidence`，退出码 4 |
+| 同一增孔件复用旋转对齐报告 | 28.274334 | 0 | `PlacementReused`，差异率约 0.595282%，交集为 4721.460184 mm³ |
+
+增孔体积与 Ø3 mm、深 4 mm 的圆柱一致。复用报告验证了参考件哈希及双方配置，经编辑的学生件哈希与校准时不同。缺失和交集网格均已导出，分别含 238 和 212 个三角面。验收前后六份源文件的 SHA-256、最后写入时间及 CAD 可见文档列表均一致。
 
 主要实现位于 `src/SWGrade.SolidWorks/GeometryProbe.cs`、`GeometryProbeReport.cs`、`CadAnalysis.cs` 和 `PartProbe.cs`。独立命令在 `src/SWGrade.Probe/GeometryProbeCommand.cs`。可按 `dotnet run --project tests/CloudChecks -c Release` 和 `dotnet run --project tests/WorkflowChecks -c Release` 重跑云端检查。

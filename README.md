@@ -24,13 +24,13 @@
 
 可用 `--list-open` 列出当前打开的零件，或用 `--active` 读取活动零件的已保存版本。
 
-开发中的 `--geometry` 命令使用 SOLIDWORKS 对已保存的单实体零件执行双向实体差集实验。局部修改后可用 `--transform-report` 复用已验证的放置方式。该模式待真机验证，运行命令和预期见 [阶段 A 实体几何比较](docs/geometry-stage-a.md)。
+开发中的 `--geometry` 命令使用 SOLIDWORKS 对已保存的单实体零件执行双向实体差集实验。局部修改后可用 `--transform-report` 复用已验证的放置方式。SOLIDWORKS 2026 已通过移孔、非对称旋转和增孔后的放置复用对照。运行命令和结果见 [阶段 A 实体几何比较](docs/geometry-stage-a.md)。
 
 在 2025 实例上使用 `--expect 2025`，可加 `--config '配置名'` 和 `--json 'part-analysis.json'`。从便携包根目录可运行 `tests\Verify-ModelRead.ps1` 进行真实样本的重复读值及源文件校验。
 
 | 运行组合 | 状态 |
 | --- | --- |
-| Windows 11 x64 + SOLIDWORKS 2026 | 几何探针四组真机对照通过，完整流程待验收 |
+| Windows 11 x64 + SOLIDWORKS 2026 | 几何探针控制样本通过，完整批改流程待验收 |
 | Windows 10 22H2 x64 + SOLIDWORKS 2025 | 设计兼容，待学校机房真机验收 |
 | Windows 11 x64 + SOLIDWORKS 2025 | 设计兼容，尚未实测 |
 | Windows 10/11 x64，未启动或未安装 SOLIDWORKS | 有明确诊断路径，待 Windows 现场验证 |
