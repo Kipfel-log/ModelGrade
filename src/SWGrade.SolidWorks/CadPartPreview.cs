@@ -13,6 +13,7 @@ namespace SWGrade.SolidWorks
         public float[] FlatTriangleCoordinates { get; private set; }
         public string FlatPreviewIssue { get; private set; }
         public double[] FlatNormal { get; private set; }
+        public IReadOnlyList<DatumPlane> DatumPlanes { get; internal set; } = Array.Empty<DatumPlane>();
 
         internal void ReadMesh(CadInterop interop, object part)
         {

@@ -355,6 +355,7 @@ namespace SWGrade.Desktop
             if (solid != null && (mode == ViewMode.Extra || mode == ViewMode.Missing || DifferencesOnly.IsChecked == true))
                 meshIssue = mode == ViewMode.Extra ? "没有多余实体。" : mode == ViewMode.Missing ? "没有缺少实体。" : "没有实体差异。";
             EmptyMessage.Text = preparing ? "正在准备模型和叠加差异…" : prepareIssue ?? meshIssue;
+            DrawDatumHighlights();
         }
 
         private string DescribeGeometry(bool pair)
@@ -362,7 +363,9 @@ namespace SWGrade.Desktop
             var evidence = Scene?.ViewGeometry;
             if (!IsFlatPattern && evidence?.DifferenceRatio is double ratio && !Scene.HasSheetMetal)
             {
-                string coordinates = evidence.Coordinates == GeometryCoordinates.Original ? "原始 CAD 坐标" : "已验证刚体重合";
+                string coordinates = evidence.Coordinates == GeometryCoordinates.Original ? "原始 CAD 坐标" :
+                    evidence.Coordinates == GeometryCoordinates.Datum ? $"已按基准对齐 · 核对 {evidence.DatumMatchedPlanes} 个外侧平面" :
+                    "已验证刚体重合";
                 string figures = $"缺少 {evidence.MissingVolumeM3 * 1e9:G7} mm³ · 多余 {evidence.ExtraVolumeM3 * 1e9:G7} mm³ · 差异率 {ratio:P4}";
                 if (Scene.OriginalPreview != null)
                     coordinates += "预览 · 对齐规则的几何分待复核";
@@ -534,9 +537,15 @@ namespace SWGrade.Desktop
         {
             if (dragButton == args.ChangedButton)
             {
-                if (IsDeviationView && dragButton == MouseButton.Left &&
+                if (dragButton == MouseButton.Left &&
                     (args.GetPosition(Surface) - dragStart).Length < 4)
-                    ReportDeviationAt(args.GetPosition(ModelViewport));
+                {
+                    var location = args.GetPosition(ModelViewport);
+                    if (IsDeviationView)
+                        ReportDeviationAt(location);
+                    else
+                        PickDatum(location);
+                }
                 Surface.ReleaseMouseCapture();
             }
         }

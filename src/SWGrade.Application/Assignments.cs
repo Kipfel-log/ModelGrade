@@ -25,6 +25,8 @@ namespace SWGrade.Application
             string actualHash = PartFiles.Hash(path);
             if (expectedStandardHash != null && actualHash != expectedStandardHash)
                 throw new InvalidOperationException("标准模型在读取配置后发生变化，请重新读取配置。");
+            if (rules.GeometryCoordinates == GeometryCoordinates.Datum && rules.Datum.ReferenceHash != actualHash)
+                throw new InvalidOperationException("标准件在选择基准后发生变化，请重新设置基准。");
             var assignment = new Assignment
             {
                 Id = Guid.NewGuid().ToString("N"),

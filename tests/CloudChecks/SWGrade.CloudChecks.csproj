@@ -8,6 +8,7 @@
     <Compile Include="../../src/SWGrade.SolidWorks/OpenPartInfo.cs" Link="OpenPartInfo.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/ModelCopy.cs" Link="ModelCopy.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/GeometryProbeReport.cs" Link="GeometryProbeReport.cs" />
+    <Compile Include="../../src/SWGrade.SolidWorks/DatumRegistration.cs" Link="DatumRegistration.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/SurfaceDeviation.cs" Link="SurfaceDeviation.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/InspectionJson.cs" Link="InspectionJson.cs" />
   </ItemGroup>

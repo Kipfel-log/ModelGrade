@@ -6,7 +6,7 @@ namespace SWGrade.Domain
 {
     public enum GradingMode { GeometryFirst, ProcessRequired }
     public enum GeometryPolicy { PassFail, Bands, TeacherReview }
-    public enum GeometryCoordinates { Original, Aligned }
+    public enum GeometryCoordinates { Original, Aligned, Datum }
 
     public sealed class MeasurementTolerance
     {
@@ -41,6 +41,7 @@ namespace SWGrade.Domain
             new MeasurementTolerance { Relative = 0.001, Absolute = 1e-6 };
         public GeometryPolicy GeometryPolicy { get; set; } = GeometryPolicy.PassFail;
         public GeometryCoordinates GeometryCoordinates { get; set; }
+        public AssignmentDatum Datum { get; set; }
         public double GeometryTolerance { get; set; } = 0.001;
         public List<GeometryBand> GeometryBands { get; set; } = new List<GeometryBand>();
         public bool RequireSingleSolidBody { get; set; } = true;
@@ -68,6 +69,14 @@ namespace SWGrade.Domain
                 !Enum.IsDefined(typeof(SheetMetalMode), SheetMetal) ||
                 !Enum.IsDefined(typeof(GeometryCoordinates), GeometryCoordinates))
                 throw new ArgumentException("评分模式无效。");
+            if (GeometryCoordinates == GeometryCoordinates.Datum)
+            {
+                if (Datum == null)
+                    throw new ArgumentException("请先设置标准件的三个对齐基准。");
+                Datum.Validate();
+                if (StandardConfiguration != null && Datum.Configuration != StandardConfiguration)
+                    throw new ArgumentException("标准件配置已更改，请重新选取对齐基准。");
+            }
             if (ExpectedCadYear != null && ExpectedCadYear != "2025" && ExpectedCadYear != "2026")
                 throw new ArgumentException("可选择 SOLIDWORKS 2025、2026 或自动识别。");
             if (RequiredFeatureTypes == null ||

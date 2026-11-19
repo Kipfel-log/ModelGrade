@@ -41,7 +41,13 @@ namespace SWGrade.Desktop
         public string Configuration
         {
             get => configuration;
-            set => configuration = value;
+            set
+            {
+                if (configuration == value)
+                    return;
+                configuration = value;
+                analysis.UpdateInputs();
+            }
         }
 
         internal string RequestedConfiguration => string.IsNullOrWhiteSpace(Configuration) ? null : Configuration;
@@ -50,7 +56,7 @@ namespace SWGrade.Desktop
         {
             SourcePath = path;
             OpenPart = part;
-            Configuration = config;
+            configuration = config;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
             analysis.UpdateInputs();
         }

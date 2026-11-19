@@ -49,6 +49,8 @@ namespace SWGrade.SolidWorks
                 AlignStudent(report, reference, student, studentVolume);
             else if (report.Alignment == GeometryProbeAlignment.ReusePlacement)
                 ApplySavedPlacement(report, student, studentVolume, placement);
+            else if (report.Alignment == GeometryProbeAlignment.AssignmentDatum)
+                ApplyDatum(report, reference, student, studentVolume);
 
             int cut = cad.Constant("swBodyOperationType_e", "SWBODYCUT");
             int intersect = cad.Constant("swBodyOperationType_e", "SWBODYINTERSECT");
@@ -102,6 +104,12 @@ namespace SWGrade.SolidWorks
 
         private void ApplySavedPlacement(GeometryProbeReport report, object student, double studentVolume, double[] placement)
         {
+            ApplyStudentTransform(report, student, studentVolume, CreatePlacementTransform(placement), placement);
+            report.AlignmentState = "PlacementReused";
+        }
+
+        private object CreatePlacementTransform(double[] placement)
+        {
             // SOLIDWORKS may correct invalid rotations at creation. Check the calibration before and after the call.
             if (!GeometryProbeValidation.IsProperRigidTransform(placement))
                 throw new InvalidOperationException("对齐报告没有可复用的刚体旋转／平移。");
@@ -109,9 +117,64 @@ namespace SWGrade.SolidWorks
             var utility = cad.Call("ISldWorks", app, "GetMathUtility");
             if (utility == null)
                 throw new InvalidOperationException("SOLIDWORKS 未提供数学工具，无法复用放置变换。");
-            var transform = cad.Call("IMathUtility", utility, "CreateTransform", (object)placement);
-            ApplyStudentTransform(report, student, studentVolume, transform, placement);
-            report.AlignmentState = "PlacementReused";
+            return cad.Call("IMathUtility", utility, "CreateTransform", (object)placement);
+        }
+
+        private void ApplyDatum(GeometryProbeReport report, object reference, object student, double volume)
+        {
+            int checkpoint = cad.ReferenceCheckpoint;
+            try
+            {
+                var referencePlanes = DatumCad.ExteriorPlanes(cad, reference);
+                if (report.Datum.Planes.Any(plane => !referencePlanes.Any(candidate => plane.SameLocation(candidate, 1e-8))))
+                    throw new InvalidOperationException("标准件中未找到保存的基准平面，请重新设置作业基准。");
+                if (report.Datum.AppliesTo(report.Student.DocumentHash, report.Student.Configuration))
+                {
+                    // Identical saved content in the same configuration already defines the same placement.
+                    report.DatumMatchedPlanes = referencePlanes.Count;
+                    report.AlignmentState = "DatumVerified";
+                    return;
+                }
+                var candidates = DatumRegistration.Find(report.Datum, referencePlanes, DatumCad.ExteriorPlanes(cad, student));
+                var primary = candidates.Matrices[0];
+                if (candidates.Matrices.Length > 1)
+                    VerifyEquivalentPlacements(student, volume, candidates.Matrices);
+                ApplyStudentTransform(report, student, volume, CreatePlacementTransform(primary), primary);
+                report.DatumMatchedPlanes = candidates.MatchedPlanes;
+                report.AlignmentState = "DatumVerified";
+                cad.Log("按作业基准完成刚体对齐；核对外侧平面 {0} 个。", candidates.MatchedPlanes);
+            }
+            finally
+            {
+                cad.ReleaseAfter(checkpoint);
+            }
+        }
+
+        private void VerifyEquivalentPlacements(object student, double volume, double[][] matrices)
+        {
+            const string ambiguity = "存在多个基准摆法，无法确定唯一的学生件几何结果。请人工复核或选择可区分方向的基准。";
+            if (matrices.Length > 12)
+                throw new InvalidOperationException(ambiguity);
+            var first = CopySolid(student);
+            var scratch = new GeometryProbeReport();
+            ApplyStudentTransform(scratch, first, volume, CreatePlacementTransform(matrices[0]), matrices[0]);
+            int intersect = cad.Constant("swBodyOperationType_e", "SWBODYINTERSECT");
+            foreach (var matrix in matrices.Skip(1))
+            {
+                int checkpoint = cad.ReferenceCheckpoint;
+                try
+                {
+                    var alternative = CopySolid(student);
+                    ApplyStudentTransform(scratch, alternative, volume, CreatePlacementTransform(matrix), matrix);
+                    var intersection = Operate("检查等效基准摆法", first, alternative, intersect, true, false, false);
+                    if (!(intersection.VolumeM3 is double common) || !GeometryProbeValidation.EqualVolumes(volume, common))
+                        throw new InvalidOperationException(ambiguity);
+                }
+                finally
+                {
+                    cad.ReleaseAfter(checkpoint);
+                }
+            }
         }
 
         private void ApplyStudentTransform(GeometryProbeReport report, object student, double studentVolume,

@@ -32,6 +32,8 @@ namespace SWGrade.Desktop
         private readonly string originalGeometryText;
         private readonly string originalBands;
         private readonly IReadOnlyList<GeometryBand> savedBands;
+        private GeometryCoordinates geometryCoordinates;
+        private AssignmentDatum datum;
 
         internal RulesDraft() : this(new AssignmentRules { ParametersWeight = 40, FeaturesWeight = 0 }) { }
 
@@ -43,6 +45,7 @@ namespace SWGrade.Desktop
             mode = rules.Mode;
             SheetMetal = rules.SheetMetal;
             GeometryCoordinates = rules.GeometryCoordinates;
+            Datum = rules.Datum;
             checkProcess = mode == GradingMode.ProcessRequired ||
                 (rules.FeaturesWeight > 0 && rules.RequiredFeatureTypes.Count > 0);
             GeometryPolicy = rules.GeometryPolicy == Domain.GeometryPolicy.Bands ? "分档" :
@@ -95,7 +98,15 @@ namespace SWGrade.Desktop
         public string StandardConfiguration
         {
             get => standardConfiguration;
-            set { standardConfiguration = value; Notify(); Notify(nameof(StandardConfigurationSummary)); Notify(nameof(HasMultipleConfigurations)); }
+            set
+            {
+                standardConfiguration = value;
+                if (Datum != null && value != Datum.Configuration)
+                    Datum = null;
+                Notify();
+                Notify(nameof(StandardConfigurationSummary));
+                Notify(nameof(HasMultipleConfigurations));
+            }
         }
 
         public string StandardConfigurationSummary => StandardPath == null ? "" :
@@ -158,7 +169,18 @@ namespace SWGrade.Desktop
             }
         }
         public string GeometryPolicy { get; set; }
-        public GeometryCoordinates GeometryCoordinates { get; set; }
+        public GeometryCoordinates GeometryCoordinates
+        {
+            get => geometryCoordinates;
+            set { geometryCoordinates = value; Notify(); Notify(nameof(UsesDatum)); }
+        }
+        public bool UsesDatum => GeometryCoordinates == GeometryCoordinates.Datum;
+        public AssignmentDatum Datum
+        {
+            get => datum;
+            internal set { datum = value; Notify(); Notify(nameof(DatumStatus)); }
+        }
+        public string DatumStatus => Datum == null ? "请选择标准件的三个外侧基准面。" : $"已保存三个基准面 · {Datum.Configuration}";
         public GeometryCoordinateChoice[] GeometryCoordinateChoices => GeometryCoordinateChoice.Choices;
         public SheetMetalMode SheetMetal { get; set; }
         public RuleNumber Geometry { get; }
@@ -280,6 +302,7 @@ namespace SWGrade.Desktop
 
         internal void ChangeStandard(string path)
         {
+            Datum = null;
             string previousSuggestion = System.IO.Path.GetFileNameWithoutExtension(StandardPath);
             StandardPath = path;
             if (string.IsNullOrWhiteSpace(Name) || Name == previousSuggestion)
@@ -293,6 +316,8 @@ namespace SWGrade.Desktop
 
         internal void SetConfigurations(PartConfigurations catalog, string prefer)
         {
+            if (Datum != null && Datum.ReferenceHash != catalog.DocumentHash)
+                Datum = null;
             ConfigurationFileHash = catalog.DocumentHash;
             ConfigurationChoices = catalog.Names.Select(name => new ConfigurationChoice(name,
                 name == catalog.ActiveName ? "（文件活动配置）" : "")).ToArray();
@@ -323,6 +348,7 @@ namespace SWGrade.Desktop
                 SheetMetal = SheetMetal,
                 GeometryPolicy = policy,
                 GeometryCoordinates = GeometryCoordinates,
+                Datum = UsesDatum ? Datum : null,
                 GeometryWeight = Geometry.Read(),
                 ParametersWeight = Parameters.Read(),
                 FeaturesWeight = Features.Read(),

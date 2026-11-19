@@ -85,6 +85,9 @@ namespace SWGrade.Application
             if (model == null || !model.OpenedSuccessfully || !model.SourceIntegrityVerified ||
                 model.DocumentHash != assignment.StandardHash || model.VolumeM3 == null || model.SurfaceAreaM2 == null)
                 throw new InvalidOperationException("标准件未取得完整的只读实体度量，队列尚未开始。");
+            if (assignment.Rules.GeometryCoordinates == GeometryCoordinates.Datum &&
+                !assignment.Rules.Datum.AppliesTo(model.DocumentHash, model.Configuration))
+                throw new InvalidOperationException("已保存的基准与批改标准件或配置不同，请重新设置作业基准。");
             return model;
         }
 
@@ -202,7 +205,7 @@ namespace SWGrade.Application
                 var geometry = SavedGeometry.CompareIdenticalSnapshot(standard, student, rules.GeometryCoordinates);
                 if (!geometry.ValidatedComparison && rules.GeometryWeight > 0 && rules.GeometryPolicy != GeometryPolicy.TeacherReview &&
                     reader is IGeometryComparer comparer)
-                    geometry = await comparer.CompareAsync(standard, student, rules.GeometryCoordinates, diagnostics.Add);
+                    geometry = await comparer.CompareAsync(standard, student, rules.GeometryCoordinates, diagnostics.Add, rules.Datum);
                 submission.Grade = engine.Evaluate(rules, standard, student, geometry, submission.ConfigurationOverride);
                 submission.State = submission.Grade.NeedsReview ? TaskState.NeedsReview : TaskState.Completed;
                 submission.StatusDetail = submission.Grade.NeedsReview ? "已有可评估证据，待核对未评估项。" : "已完成全部计分检查。";

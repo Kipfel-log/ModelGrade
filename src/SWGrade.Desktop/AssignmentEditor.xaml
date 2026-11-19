@@ -161,8 +161,12 @@
                             <ComboBox x:Name="GeometryCoordinates" ItemsSource="{Binding Draft.GeometryCoordinateChoices}"
                                       DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Draft.GeometryCoordinates}"
                                       Margin="0,0,0,5"/>
-                            <TextBlock Text="考核孔位或建模基准时使用原始 CAD 坐标。形状对齐只接受经实体重合验证的刚体变换。"
+                            <TextBlock Text="允许从任意基准面建模时，可按作业基准摆正零件后再比较。作业规定了坐标和摆放时，使用原始 CAD 坐标。"
                                        Style="{StaticResource HelpText}"/>
+                            <WrapPanel Visibility="{Binding Draft.UsesDatum, Converter={StaticResource WhenTrue}}" Margin="0,0,0,8">
+                                <Button Content="选择标准件基准…" Command="{Binding ChooseDatumCommand}"/>
+                                <TextBlock Text="{Binding Draft.DatumStatus}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            </WrapPanel>
                             <Label Content="几何评分策略" Target="{Binding ElementName=GeometryStrategy}" Padding="0,0,0,5"/>
                             <ComboBox x:Name="GeometryStrategy" ItemsSource="{Binding GeometryPolicies}" SelectedItem="{Binding Draft.GeometryPolicy}"
                                       Margin="0,0,0,9"/>

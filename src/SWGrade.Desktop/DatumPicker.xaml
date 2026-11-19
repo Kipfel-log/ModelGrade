@@ -1,0 +1,29 @@
+<Window x:Class="SWGrade.Desktop.DatumPicker"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:SWGrade.Desktop"
+        Title="选择作业基准" Width="810" Height="660" MinWidth="590" MinHeight="500"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource Canvas}" Foreground="{DynamicResource Ink}"
+        FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="15">
+    <DockPanel Margin="22">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="选择外侧基准面" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="点击模型依次选择三个方向不同的外侧平面。请选择稳定的底面和侧面，避开本题要检查的孔、槽和局部特征。"
+                       TextWrapping="Wrap" Margin="0,5,0,10"/>
+            <UniformGrid Columns="3">
+                <ComboBox x:Name="Primary" AutomationProperties.Name="基准 A" SelectionChanged="ChangeSelection" Margin="0,0,8,0"/>
+                <ComboBox x:Name="Secondary" AutomationProperties.Name="基准 B" SelectionChanged="ChangeSelection" Margin="0,0,8,0"/>
+                <ComboBox x:Name="Tertiary" AutomationProperties.Name="基准 C" SelectionChanged="ChangeSelection"/>
+            </UniformGrid>
+        </StackPanel>
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <WrapPanel DockPanel.Dock="Right">
+                <Button Content="取消" IsCancel="True"/>
+                <Button Content="保存基准" IsDefault="True" Click="Accept" Style="{StaticResource PrimaryButton}"/>
+            </WrapPanel>
+            <TextBlock x:Name="Status" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+        <local:PartViewport x:Name="Preview"/>
+    </DockPanel>
+</Window>

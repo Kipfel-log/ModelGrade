@@ -31,6 +31,7 @@ namespace SWGrade.Desktop
         private GradeResult trialGrade;
         private int resultTab;
         private string trialMessage;
+        private AssignmentDatum datum;
 
         internal AnalysisViewModel(Window owner, Func<string> expectedYear, ObservableCollection<Assignment> assignments,
             NotificationCenter notices)
@@ -48,6 +49,9 @@ namespace SWGrade.Desktop
                 () => CanEdit && ShowResult && ShowSheetMetal);
             UseOriginalCoordinatesCommand = new RelayCommand(() => GeometryCoordinates = GeometryCoordinates.Original,
                 () => CanEdit && ShowResult && CanRetryOriginalCoordinates);
+            ChooseDatumCommand = new RelayCommand(async () => await ChooseDatumAsync(), () => CanEdit && Reference.HasPart);
+            UseAssignmentDatumCommand = new RelayCommand(async () => await ApplyAssignmentDatumAsync(),
+                () => CanEdit && CanUseAssignmentDatum);
             CalculateDeviationCommand = new RelayCommand(async () => await CalculateDeviationAsync(),
                 () => CanEdit && ShowResult && HasSolidPair && Scene.ViewGeometry?.ValidatedComparison == true);
             BackCommand = new RelayCommand(() => ShowResult = false, () => CanEdit);
@@ -63,6 +67,8 @@ namespace SWGrade.Desktop
         public ICommand AnalyzeCommand { get; }
         public ICommand CheckFlatCommand { get; }
         public ICommand UseOriginalCoordinatesCommand { get; }
+        public ICommand ChooseDatumCommand { get; }
+        public ICommand UseAssignmentDatumCommand { get; }
         public ICommand CalculateDeviationCommand { get; }
         public ICommand BackCommand { get; }
         public ICommand CopyCommand { get; }
@@ -81,15 +87,23 @@ namespace SWGrade.Desktop
                     return;
                 geometryCoordinates = value;
                 Notify();
+                Notify(nameof(UsesDatum));
                 if (ShowResult && HasSolidPair)
                     _ = AnalyzeAsync(SheetMetal, updatingCoordinates: true);
             }
         }
+        public bool UsesDatum => GeometryCoordinates == GeometryCoordinates.Datum;
+        public bool CanUseAssignmentDatum => SelectedAssignment?.Rules.GeometryCoordinates == GeometryCoordinates.Datum &&
+            SelectedAssignment.Rules.Datum?.AppliesTo(Scene?.Reference?.Inspection.DocumentHash,
+                Scene?.Reference?.Inspection.Configuration) == true;
+        public string DatumStatus => datum == null ? "还未选取基准" : $"已选三个基准面 · {datum.Configuration}";
         public bool CanRetryOriginalCoordinates => HasSolidPair &&
-            Scene.Coordinates == GeometryCoordinates.Aligned && Scene.Geometry?.ValidatedComparison != true;
+            Scene.Coordinates != GeometryCoordinates.Original && Scene.Geometry?.ValidatedComparison != true;
         public string CoordinateResultText => !HasSolidPair ? "" : GeometryActivity ??
             (Scene.Coordinates == GeometryCoordinates.Original ? "当前结果：原始 CAD 坐标" :
-                Scene.Geometry?.ValidatedComparison == true ? "当前结果：已验证形状刚体对齐" :
+                Scene.Coordinates == GeometryCoordinates.Datum ?
+                    (Scene.Geometry?.ValidatedComparison == true ? "当前结果：已按基准对齐" : "当前结果：基准对齐待复核") :
+                Scene.Geometry?.ValidatedComparison == true ? "当前结果：已验证同形重合" :
                 Scene.OriginalPreview != null ? "对齐未通过 · 原始 CAD 坐标预览" : "当前结果：形状刚体对齐待复核");
         public string GeometryActivity => IsBusy && !string.IsNullOrEmpty(Activity) ? Activity : null;
         public SheetMetalMode SheetMetal { get; set; }
@@ -125,6 +139,7 @@ namespace SWGrade.Desktop
                 Notify(nameof(ShowSheetMetal));
                 Notify(nameof(HasSolidPair));
                 Notify(nameof(CanRetryOriginalCoordinates));
+                Notify(nameof(CanUseAssignmentDatum));
                 Notify(nameof(CoordinateResultText));
                 Notify(nameof(FoldedTabTitle));
                 Notify(nameof(Details));
@@ -149,6 +164,8 @@ namespace SWGrade.Desktop
                     return;
                 selectedAssignment = value;
                 Notify();
+                Notify(nameof(CanUseAssignmentDatum));
+                CommandManager.InvalidateRequerySuggested();
                 UpdateTrial();
             }
         }
@@ -247,7 +264,7 @@ namespace SWGrade.Desktop
                         " 请核对两边的配置，在 SOLIDWORKS 中重建并保存有问题的零件，再重新分析。");
 
                 if (HasSolidPair && blocker == null && Scene.Geometry?.ValidatedComparison != true)
-                    yield return new AnalysisFinding(CanRetryOriginalCoordinates ? "形状刚体对齐待复核" : "实体差集待复核",
+                    yield return new AnalysisFinding(CanRetryOriginalCoordinates ? "对齐待复核" : "实体差集待复核",
                         (Scene.Geometry?.Reason ?? "未取得可验证的实体差集。") +
                         (Scene.OriginalPreview == null ? "" : " 三维差集和偏差云图使用原始 CAD 坐标。对齐规则的几何分仍待复核。"));
 
@@ -318,8 +335,56 @@ namespace SWGrade.Desktop
 
         internal void UpdateInputs()
         {
+            var requested = Reference.RequestedConfiguration ?? Reference.OpenPart?.Configuration;
+            if (datum != null && (!string.Equals(datumReferencePath, Reference.SourcePath, StringComparison.OrdinalIgnoreCase) ||
+                (requested != null && requested != datum.Configuration)))
+                SetDatum(null);
             Notify(nameof(AnalyzeLabel));
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        private string datumReferencePath;
+
+        private void SetDatum(AssignmentDatum value)
+        {
+            datum = value;
+            datumReferencePath = value == null ? null : Reference.SourcePath;
+            Notify(nameof(DatumStatus));
+        }
+
+        private async Task ChooseDatumAsync()
+        {
+            AssignmentDatum chosen = null;
+            IsBusy = true;
+            Activity = "正在读取参考件的外侧平面…";
+            try
+            {
+                chosen = await DatumPicker.PickAsync(owner, Reference.SourcePath,
+                    Reference.RequestedConfiguration ?? Reference.OpenPart?.Configuration,
+                    expectedYear(), datum);
+            }
+            catch (Exception exception)
+            {
+                notices.Publish("无法设置基准", FriendlyError(exception), NoticeKind.Error);
+            }
+            finally
+            {
+                Activity = "";
+                IsBusy = false;
+            }
+            if (chosen != null)
+                await UseDatumAsync(chosen);
+        }
+
+        private Task ApplyAssignmentDatumAsync() => UseDatumAsync(SelectedAssignment.Rules.Datum);
+
+        private Task UseDatumAsync(AssignmentDatum chosen)
+        {
+            SetDatum(chosen);
+            geometryCoordinates = GeometryCoordinates.Datum;
+            Notify(nameof(GeometryCoordinates));
+            Notify(nameof(UsesDatum));
+            return ShowResult ? AnalyzeAsync(SheetMetal, updatingCoordinates: true) : Task.CompletedTask;
         }
 
         internal void ShowCloseMessage() =>
@@ -365,7 +430,7 @@ namespace SWGrade.Desktop
                     {
                         Activity = "正在计算 SOLIDWORKS 实体差集…";
                         result.SolidComparison = await CadGeometryComparison.CompareAsync(standard, student,
-                            coordinates, true, progress.Report);
+                            coordinates, true, progress.Report, datum: coordinates == GeometryCoordinates.Datum ? datum : null);
                     }
                     result.Geometry = result.SolidComparison?.EvidenceFor(standard, student) ??
                         SavedGeometry.CompareIdenticalSnapshot(standard, student, coordinates);
@@ -392,6 +457,7 @@ namespace SWGrade.Desktop
                 {
                     geometryCoordinates = Scene.Coordinates;
                     Notify(nameof(GeometryCoordinates));
+                    Notify(nameof(UsesDatum));
                 }
                 string reason = CadAnalysis.DescribeError(exception);
                 Diagnostics += reason + Environment.NewLine;
@@ -416,7 +482,7 @@ namespace SWGrade.Desktop
                 var reference = current.Reference.Inspection;
                 var student = current.Current.Inspection;
                 var calculated = await CadGeometryComparison.CompareAsync(reference, student,
-                    current.ViewGeometry.Coordinates, false, progress.Report, includeDeviation: true);
+                    current.ViewGeometry.Coordinates, false, progress.Report, includeDeviation: true, datum: current.ViewGeometry.Datum);
                 var evidence = calculated.EvidenceFor(reference, student);
                 Scene = evidence.ValidatedComparison ? current.WithDeviation(calculated.Deviation, calculated.DeviationIssue) :
                     current.WithDeviation(null, evidence.Reason);

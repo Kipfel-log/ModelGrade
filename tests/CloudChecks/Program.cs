@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -135,6 +136,7 @@ namespace SWGrade.Probe
 
         private static void CheckGeometryProbeValidation()
         {
+            CheckDatumRegistration();
             // Synthetic statistics exercise the decision logic only, not SOLIDWORKS or Boolean geometry.
             GeometryProbeOperation Empty() => new GeometryProbeOperation { State = "EmptyUnconfirmed", ErrorCode = 0 };
             GeometryProbeOperation Bodies(double volume) => new GeometryProbeOperation
@@ -181,6 +183,44 @@ namespace SWGrade.Probe
                     output.RootElement.GetProperty("Missing").GetProperty("VolumeM3").ValueKind == JsonValueKind.Null &&
                     output.RootElement.GetProperty("DifferenceRatio").ValueKind == JsonValueKind.Null,
                     "实验 JSON 保留失败与空差异数值");
+        }
+
+        private static void CheckDatumRegistration()
+        {
+            DatumPlane Plane(double x, double y, double z, double offset) => new DatumPlane
+                { X = x, Y = y, Z = z, OffsetMetres = offset, AreaSquareMetres = .0001 };
+            var exterior = new[]
+            {
+                Plane(0, 0, -1, .002), Plane(0, -1, 0, .015), Plane(-1, 0, 0, .02),
+                Plane(0, 0, 1, .002), Plane(0, 1, 0, .015), Plane(1, 0, 0, .02)
+            };
+            var datum = new AssignmentDatum
+            {
+                ReferenceHash = new string('a', 64), Configuration = "Default", Planes = exterior.Take(3).ToArray()
+            };
+            datum.Validate();
+            Require(DatumRegistration.Find(datum, exterior, exterior).Matrices.Length == 4,
+                "基准求解保留长方板四种外侧几何候选供实体核对");
+            var reference = exterior.Append(Plane(Math.Sqrt(.5), Math.Sqrt(.5), 0, .019)).ToArray();
+            var displaced = reference.Select(p =>
+            {
+                var next = Plane(p.X, -p.Z, p.Y, p.OffsetMetres);
+                next.OffsetMetres += next.Project(.075, -.058, .126);
+                return next;
+            }).Reverse().ToArray();
+            var aligned = DatumRegistration.Find(datum, reference, displaced);
+            Require(aligned.Matrices.Length == 1 && aligned.MatchedPlanes == 7 &&
+                aligned.Matrices[0][5] == -1 && Math.Abs(aligned.Matrices[0][9] + .075) < 1e-9 &&
+                Math.Abs(aligned.Matrices[0][10] + .126) < 1e-9 && Math.Abs(aligned.Matrices[0][11] + .058) < 1e-9,
+                "基准由外侧面恢复旋转和平移，与候选枚举顺序无关");
+            displaced.Single(p => p.X > .99999).OffsetMetres += .0006;
+            var changedSize = DatumRegistration.Find(datum, reference, displaced);
+            Require(changedSize.Matrices.Length == 1 && changedSize.MatchedPlanes == 6 &&
+                GeometryProbeValidation.SameRigidTransform(aligned.Matrices[0], changedSize.Matrices[0]),
+                "对侧尺寸偏差由差集计算，不能挪动已经由基准确定的变换");
+            var tooFew = displaced.Take(3).ToArray();
+            Expect<InvalidOperationException>(() => DatumRegistration.Find(datum, reference, tooFew),
+                "三面只能计算候选，缺少独立外侧面时须复核");
         }
 
         private static void CheckOpenPartSelection()

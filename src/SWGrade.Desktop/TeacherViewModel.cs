@@ -60,6 +60,8 @@ namespace SWGrade.Desktop
             SelectStudentConfigurationCommand = Command(async () => await WithBusyAsync(SelectStudentConfigurationAsync),
                 () => HasAssignment && SelectedNeedsConfiguration);
             ChooseOpenStandardCommand = Command(async () => await WithBusyAsync(ChooseOpenStandardAsync), () => CanEdit);
+            ChooseDatumCommand = Command(async () => await WithBusyAsync(ChooseDatumAsync),
+                () => CanEdit && Draft.StandardPath != null);
             RedistributeWeightsCommand = Command(() => Draft.Redistribute(), () => CanEdit && Draft.CanRedistribute());
             SaveAssignmentCommand = Command(async () => await WithBusyAsync(SaveAssignmentAsync), () => CanEdit);
             PrecheckCommand = Command(async () => await WithBusyAsync(PrecheckAsync), () => HasAssignment);
@@ -98,6 +100,7 @@ namespace SWGrade.Desktop
         public ICommand NewDraftCommand { get; }
         public ICommand ReuseRulesCommand { get; }
         public ICommand ChooseStandardCommand { get; }
+        public ICommand ChooseDatumCommand { get; }
         public ICommand RefreshConfigurationsCommand { get; }
         public ICommand SelectStudentConfigurationCommand { get; }
         public bool SelectedNeedsConfiguration => Selected?.Item.NeedsConfigurationChoice == true;
@@ -387,6 +390,14 @@ namespace SWGrade.Desktop
             notices.Publish(WorkspaceHeading, "已指定这个学生的配置。点击开始／继续队列重新批改。");
         }
 
+        private async Task ChooseDatumAsync()
+        {
+            Activity = "正在读取标准件的外侧平面…";
+            var datum = await DatumPicker.PickAsync(owner, Draft.StandardPath, Draft.StandardConfiguration, Draft.ExpectedYear, Draft.Datum);
+            if (datum != null)
+                Draft.Datum = datum;
+        }
+
         private async Task SaveAssignmentAsync()
         {
             if (string.IsNullOrWhiteSpace(Draft.StandardPath))
@@ -667,9 +678,9 @@ namespace SWGrade.Desktop
         private sealed class CadReader : IModelReader, IGeometryComparer
         {
             public async Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
-                GeometryCoordinates coordinates, Action<string> report)
+                GeometryCoordinates coordinates, Action<string> report, AssignmentDatum datum = null)
             {
-                var comparison = await CadGeometryComparison.CompareAsync(reference, student, coordinates, false, report);
+                var comparison = await CadGeometryComparison.CompareAsync(reference, student, coordinates, false, report, datum: datum);
                 return comparison.EvidenceFor(reference, student);
             }
 

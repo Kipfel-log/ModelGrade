@@ -5,7 +5,7 @@ using SWGrade.Domain;
 
 namespace SWGrade.SolidWorks
 {
-    public enum GeometryProbeAlignment { OriginalCoordinates, CoincidentShape, ReusePlacement }
+    public enum GeometryProbeAlignment { OriginalCoordinates, CoincidentShape, ReusePlacement, AssignmentDatum }
 
     [DataContract]
     public sealed class GeometryProbeReport
@@ -18,6 +18,8 @@ namespace SWGrade.SolidWorks
         [DataMember] public string CadRevision { get; internal set; }
         [DataMember] public GeometryProbeAlignment Alignment { get; internal set; }
         [DataMember] public string AlignmentState { get; internal set; }
+        [DataMember(EmitDefaultValue = false)] public AssignmentDatum Datum { get; internal set; }
+        [DataMember(EmitDefaultValue = false)] public int? DatumMatchedPlanes { get; internal set; }
         [DataMember] public double[] StudentToReferenceTransform { get; internal set; }
         [DataMember(EmitDefaultValue = false)] public GeometryPlacementSource PlacementSource { get; internal set; }
         [DataMember] public ModelInspectionResult Reference { get; internal set; }
@@ -36,14 +38,17 @@ namespace SWGrade.SolidWorks
         public GeometryEvidence EvidenceFor(ModelInspectionResult reference, ModelInspectionResult student)
         {
             bool matches = SameSnapshot(Reference, reference) && SameSnapshot(Student, student);
-            bool aligned = Alignment != GeometryProbeAlignment.OriginalCoordinates;
             bool verified = Measured && matches &&
-                (Alignment == GeometryProbeAlignment.OriginalCoordinates || AlignmentState == "CoincidenceVerified");
+                (Alignment == GeometryProbeAlignment.OriginalCoordinates || AlignmentState == "CoincidenceVerified" ||
+                    Alignment == GeometryProbeAlignment.AssignmentDatum && AlignmentState == "DatumVerified");
             return new GeometryEvidence
             {
                 ValidatedComparison = verified,
                 Source = "SolidWorksBRep",
-                Coordinates = aligned ? GeometryCoordinates.Aligned : GeometryCoordinates.Original,
+                Coordinates = Alignment == GeometryProbeAlignment.AssignmentDatum ? GeometryCoordinates.Datum :
+                    Alignment == GeometryProbeAlignment.OriginalCoordinates ? GeometryCoordinates.Original : GeometryCoordinates.Aligned,
+                Datum = Datum,
+                DatumMatchedPlanes = DatumMatchedPlanes,
                 ReferenceVolumeM3 = ReferenceVolumeM3,
                 StudentVolumeM3 = StudentVolumeM3,
                 MissingVolumeM3 = Missing?.VolumeM3,

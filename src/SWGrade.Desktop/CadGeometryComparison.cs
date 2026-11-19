@@ -9,10 +9,11 @@ namespace SWGrade.Desktop
     {
         internal static Task<GeometryProbeReport> CompareAsync(ModelInspectionResult reference,
             ModelInspectionResult student, GeometryCoordinates coordinates, bool includeMesh, Action<string> report,
-            bool includeDeviation = false) =>
+            bool includeDeviation = false, AssignmentDatum datum = null) =>
             StaWorker.Run(() => CadAnalysis.ProbeGeometry(reference.SourcePath, student.SourcePath,
                 reference.Configuration, student.Configuration, reference.SolidWorksVersion,
-                coordinates == GeometryCoordinates.Aligned ? GeometryProbeAlignment.CoincidentShape :
-                    GeometryProbeAlignment.OriginalCoordinates, includeMesh, report, includeDeviation: includeDeviation));
+                coordinates == GeometryCoordinates.Datum ? GeometryProbeAlignment.AssignmentDatum :
+                    coordinates == GeometryCoordinates.Aligned ? GeometryProbeAlignment.CoincidentShape :
+                    GeometryProbeAlignment.OriginalCoordinates, includeMesh, report, includeDeviation: includeDeviation, datum: datum));
     }
 }

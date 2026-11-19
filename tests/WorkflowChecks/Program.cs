@@ -585,6 +585,31 @@ namespace SWGrade.WorkflowChecks
             pair.Grade.Geometry.Coordinates = GeometryCoordinates.Original;
             trial = TrialGrading.Evaluate(assignment, pair.StandardModel, pair.StudentModel, pair.Grade.Geometry);
             Check(trial.FinalAutoScore == null && trial.ReviewPoints == 60, "trial with another coordinate strategy defers geometry");
+            var datum = new AssignmentDatum
+            {
+                ReferenceHash = PartFiles.Hash(reference), Configuration = "A",
+                Planes = new[]
+                {
+                    new DatumPlane { X = 1, AreaSquareMetres = 1 },
+                    new DatumPlane { Y = 1, AreaSquareMetres = 1 },
+                    new DatumPlane { Z = 1, AreaSquareMetres = 1 }
+                }
+            };
+            var datumAssignment = jobs.Create("Datum", reference, new AssignmentRules
+            {
+                GeometryCoordinates = GeometryCoordinates.Datum, Datum = datum, StandardConfiguration = "A",
+                GeometryWeight = 60, ParametersWeight = 40, FeaturesWeight = 0
+            });
+            jobs.Import(datumAssignment, new[] { student });
+            var storedDatum = store.LoadAssignments().Single(job => job.Id == datumAssignment.Id);
+            await service.RunAsync(storedDatum, null, null);
+            var datumPair = store.LoadSubmissions(storedDatum.Id).Single();
+            Check(datumPair.Grade.Geometry.Datum.SameDefinition(datum) && datumPair.Grade.FinalAutoScore == 40,
+                "saved assignment datum travels through batch comparison and SQLite");
+            datumPair.Grade.Geometry.Datum.Planes[0].OffsetMetres += 1;
+            Check(TrialGrading.Evaluate(storedDatum, datumPair.StandardModel, datumPair.StudentModel,
+                    datumPair.Grade.Geometry).ReviewPoints == 60,
+                "trial rejects a comparison performed against a different datum definition");
         }
 
         private static ModelInspectionResult Model(string hash, string config) => new ModelInspectionResult
@@ -637,13 +662,14 @@ namespace SWGrade.WorkflowChecks
             internal int Comparisons { get; private set; }
 
             public Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
-                GeometryCoordinates coordinates, Action<string> report)
+                GeometryCoordinates coordinates, Action<string> report, AssignmentDatum datum = null)
             {
                 Comparisons++;
                 return Task.FromResult(new GeometryEvidence
                 {
                     Source = "MOCK",
                     Coordinates = coordinates,
+                    Datum = datum,
                     ValidatedComparison = true,
                     ReferenceVolumeM3 = 1,
                     MissingVolumeM3 = 0.01,

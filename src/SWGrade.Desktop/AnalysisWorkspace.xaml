@@ -135,6 +135,9 @@
                         <Label Content="比较坐标" Target="{Binding ElementName=ComparisonCoordinates}" Padding="16,5,9,5"/>
                         <ComboBox x:Name="ComparisonCoordinates" MinWidth="146" ItemsSource="{Binding GeometryCoordinateChoices}"
                                   SelectedValuePath="Value" DisplayMemberPath="Label" SelectedValue="{Binding GeometryCoordinates}"/>
+                        <Button Content="选择参考件基准…" Command="{Binding ChooseDatumCommand}" Margin="7,0,0,0"
+                                Visibility="{Binding UsesDatum, Converter={StaticResource VisibleWhenTrue}}"
+                                ToolTip="{Binding DatumStatus}"/>
                     </WrapPanel>
                     <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0">
                         <TextBlock Text="选择两件可对照，仅选当前件可单独分析。" Foreground="{DynamicResource Muted}"
@@ -251,6 +254,8 @@
                                                Foreground="{DynamicResource Muted}" Margin="9,0"/>
                                     <Button Content="按原始坐标重新比较" Command="{Binding UseOriginalCoordinatesCommand}"
                                             Visibility="{Binding CanRetryOriginalCoordinates, Converter={StaticResource VisibleWhenTrue}}"/>
+                                    <Button Content="选择参考件基准…" Command="{Binding ChooseDatumCommand}"
+                                            Visibility="{Binding UsesDatum, Converter={StaticResource VisibleWhenTrue}}"/>
                                 </WrapPanel>
                                 <local:PartViewport x:Name="SolidViewport" Scene="{Binding Scene}" WorkMessage="{Binding GeometryActivity}"/>
                             </DockPanel>
@@ -345,6 +350,8 @@
                                     <Label Content="评分作业" Target="{Binding ElementName=ScoringAssignment}" Padding="0,0,0,5"/>
                                     <ComboBox x:Name="ScoringAssignment" ItemsSource="{Binding Assignments}" SelectedItem="{Binding SelectedAssignment}"
                                               DisplayMemberPath="Name" AutomationProperties.Name="评分作业"/>
+                                    <Button Content="按此作业基准重新比较" Command="{Binding UseAssignmentDatumCommand}" HorizontalAlignment="Left"
+                                            Visibility="{Binding CanUseAssignmentDatum, Converter={StaticResource VisibleWhenTrue}}"/>
                                     <TextBlock Text="{Binding TrialMessage}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,12,0,12"/>
                                     <ItemsControl ItemsSource="{Binding TrialChecks}">
                                         <ItemsControl.ItemTemplate>

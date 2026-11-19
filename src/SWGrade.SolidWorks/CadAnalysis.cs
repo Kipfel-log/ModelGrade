@@ -121,10 +121,28 @@ namespace SWGrade.SolidWorks
             });
         }
 
+        public static CadPartPreview PreviewDatum(string path, string configuration, string expectedYear, Action<string> report)
+        {
+            return WithSession(expectedYear, report, (interop, session) =>
+            {
+                var preview = new CadPartPreview();
+                preview.Inspection = ReadSavedCopy(interop, session, path, configuration, preview, SheetMetalMode.StandardPart,
+                    inspectModel: model =>
+                    {
+                        var probe = new GeometryProbe(interop, session.App);
+                        preview.DatumPlanes = DatumCad.ExteriorPlanes(interop, probe.CaptureSolid(model));
+                    });
+                VerifyGeometryConfiguration(interop, preview.Inspection, "标准件");
+                if (!preview.Inspection.SourceIntegrityVerified || preview.DatumPlanes.Count < 4)
+                    throw new InvalidOperationException("标准件需要可核对的单实体及至少四个外侧平面。");
+                return preview;
+            });
+        }
+
         public static GeometryProbeReport ProbeGeometry(string referencePath, string studentPath,
             string referenceConfiguration, string studentConfiguration, string expectedYear,
             GeometryProbeAlignment alignment, bool includeMesh, Action<string> report, string placementReportPath = null,
-            bool includeDeviation = false)
+            bool includeDeviation = false, AssignmentDatum datum = null)
         {
             var result = new GeometryProbeReport
             {
@@ -133,8 +151,10 @@ namespace SWGrade.SolidWorks
                 RequestedReferenceConfiguration = referenceConfiguration,
                 RequestedStudentConfiguration = studentConfiguration,
                 Alignment = alignment,
+                Datum = datum,
                 AlignmentState = alignment == GeometryProbeAlignment.OriginalCoordinates ? "OriginalCoordinates" :
-                    alignment == GeometryProbeAlignment.ReusePlacement ? "AwaitingPlacement" : "AwaitingCoincidence"
+                    alignment == GeometryProbeAlignment.ReusePlacement ? "AwaitingPlacement" :
+                    alignment == GeometryProbeAlignment.AssignmentDatum ? "AwaitingDatum" : "AwaitingCoincidence"
             };
 
             try
@@ -144,6 +164,12 @@ namespace SWGrade.SolidWorks
 
                 if ((alignment == GeometryProbeAlignment.ReusePlacement) != !string.IsNullOrWhiteSpace(placementReportPath))
                     throw new ArgumentException("复用放置方式需要指定对齐报告。", nameof(placementReportPath));
+                if (alignment == GeometryProbeAlignment.AssignmentDatum)
+                {
+                    if (datum == null)
+                        throw new ArgumentException("请先选取标准件的三个对齐基准。");
+                    datum.Validate();
+                }
 
                 double[] placement = null;
                 if (alignment == GeometryProbeAlignment.ReusePlacement)
@@ -165,6 +191,9 @@ namespace SWGrade.SolidWorks
                         inspectModel: model =>
                         {
                             VerifyGeometryConfiguration(interop, result.Reference, "参考件");
+                            if (alignment == GeometryProbeAlignment.AssignmentDatum &&
+                                !datum.AppliesTo(result.Reference.DocumentHash, result.Reference.Configuration))
+                                throw new InvalidOperationException("此基准属于其他参考件或配置，请重新设置。");
                             if (result.PlacementSource != null)
                                 GeometryProbeValidation.CheckPlacementReference(result.PlacementSource, result.Reference);
                             var reference = probe.CaptureSolid(model);

@@ -17,3 +17,11 @@ Windows 上可运行下列检查，核对模型表面实际渲染的红、绿、
 ```powershell
 dotnet run --project tests/DeviationRenderingChecks -c Release -p:Platform=x64
 ```
+
+## 作业基准对齐
+
+基准设置保存三张标准件外侧平面的单位法向、平面偏移、文件 SHA-256 与配置。用户可在模型上点选或从列表选择。程序用 CAD 实体的极值点判断每个平面是否为外支撑面，以法向夹角匹配学生件候选，按三张对应平面计算单位比例的刚体变换。孔壁等内部面不会参与定位。 [SOLIDWORKS 平面参数](https://help.solidworks.com/2026/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.ISurface~PlaneParams.html) · [实体极值点](https://help.solidworks.com/2025/English/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IBody2~GetExtremePoint.html)
+
+候选必须通过三个选定面与额外外侧面的核对。平面匹配阈值为 0.02 mm 和约 0.057°，候选至少匹配四个外侧平面，且至少覆盖两件平面数较少一侧的 60%。当最高匹配数量相同，SOLIDWORKS 会核对各候选下的学生实体是否占据同一空间。若实体结果有不同，转人工复核。比较前后均验证临时学生件体积，差集和交集使用同一变换。
+
+定位过程适用于具有明确外侧平面的普通单实体。单件试算从已保存作业载入同一套基准，批改、差集视图及偏差云图复用经过确认的坐标。原始 CAD 坐标和同形重合验证保留为独立选项。

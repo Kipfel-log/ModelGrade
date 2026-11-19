@@ -25,6 +25,8 @@ namespace SWGrade.Domain
         public bool ValidatedComparison { get; set; }
         public string Source { get; set; }
         public GeometryCoordinates Coordinates { get; set; }
+        public AssignmentDatum Datum { get; set; }
+        public int? DatumMatchedPlanes { get; set; }
         public double? ReferenceVolumeM3 { get; set; }
         public double? StudentVolumeM3 { get; set; }
         public double? MissingVolumeM3 { get; set; }

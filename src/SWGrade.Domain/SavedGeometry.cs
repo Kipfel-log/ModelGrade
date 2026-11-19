@@ -10,7 +10,7 @@ namespace SWGrade.Domain
         {
             // File identity is only useful for the same configuration and clean, reproducible CAD reads.
             string hash = reference?.DocumentHash;
-            if (hash != null && hash.Length == 64 && hash.All(Uri.IsHexDigit) &&
+            if (coordinates != GeometryCoordinates.Datum && hash != null && hash.Length == 64 && hash.All(Uri.IsHexDigit) &&
                 string.Equals(hash, current?.DocumentHash, StringComparison.OrdinalIgnoreCase) &&
                 reference.SolidBodyCount == 1 && current.SolidBodyCount == 1 &&
                 reference.SurfaceBodyCount == 0 && current.SurfaceBodyCount == 0 &&

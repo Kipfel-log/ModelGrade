@@ -93,7 +93,7 @@ namespace SWGrade.Application
     public interface IGeometryComparer
     {
         Task<GeometryEvidence> CompareAsync(ModelInspectionResult reference, ModelInspectionResult student,
-            GeometryCoordinates coordinates, Action<string> report);
+            GeometryCoordinates coordinates, Action<string> report, AssignmentDatum datum = null);
     }
 
     public static class Clock

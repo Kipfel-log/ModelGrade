@@ -171,6 +171,9 @@ namespace SWGrade.Domain
 
             if (geometry != null && geometry.Coordinates != rules.GeometryCoordinates)
                 return Check("几何差异", weight, CheckStatus.Unverified, "当前比较采用的坐标策略与作业不同，请按作业策略重新比较。");
+            if (geometry?.ValidatedComparison == true && rules.GeometryCoordinates == GeometryCoordinates.Datum &&
+                !rules.Datum.SameDefinition(geometry.Datum))
+                return Check("几何差异", weight, CheckStatus.Unverified, "本次对齐使用的基准与作业设置不同，请按作业基准重新比较。");
 
             if (!(geometry?.DifferenceRatio is double ratio))
                 return Check("几何差异", weight, CheckStatus.Unverified, geometry?.Reason ?? "当前环境未取得经验证的几何比较证据。");
