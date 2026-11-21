@@ -157,10 +157,19 @@ namespace SWGrade.Classroom
                 var deadline = Task.Delay(1350);
                 while (!deadline.IsCompleted)
                 {
-                    var response = socket.ReceiveAsync();
-                    if (await Task.WhenAny(deadline, response) != response)
-                        break;
-                    var packet = await response;
+                    UdpReceiveResult packet;
+                    try
+                    {
+                        var response = socket.ReceiveAsync();
+                        if (await Task.WhenAny(deadline, response) != response)
+                            break;
+                        packet = await response;
+                    }
+                    catch (SocketException exception) when (exception.SocketErrorCode == SocketError.ConnectionReset)
+                    {
+                        // Windows reports an unreachable UDP destination as a reset; other destinations can still reply.
+                        continue;
+                    }
                     if (packet.RemoteEndPoint.Port == Port && packet.Buffer.Length == Reply.Length &&
                         Encoding.ASCII.GetString(packet.Buffer) == Reply)
                         found.Add(packet.RemoteEndPoint.Address);

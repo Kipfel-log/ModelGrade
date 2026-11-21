@@ -155,11 +155,15 @@ namespace SWGrade.Desktop
             try
             {
                 var addresses = await ClassroomTransport.FindAsync();
+                var typedAddress = TeacherAddress.Text;
                 TeacherAddress.ItemsSource = addresses.Select(address => address.ToString()).ToArray();
-                if (addresses.Length == 1)
+                if (addresses.Length == 1 && string.IsNullOrWhiteSpace(typedAddress))
                     TeacherAddress.SelectedIndex = 0;
+                else
+                    TeacherAddress.Text = typedAddress;
                 Status.Text = addresses.Length == 0 ? "未发现大屏。可填写教师大屏上显示的 IP，或交成绩文件。" : "请选择教师 IP 并填写课堂码。";
             }
+            catch (SocketException) { Status.Text = "自动发现暂不可用。可填写教师大屏上的 IP 和课堂码，或导出成绩文件。"; }
             catch (Exception exception) { Status.Text = exception.Message; }
             finally { sending = false; }
         }
