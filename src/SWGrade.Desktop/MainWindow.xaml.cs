@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,6 +21,7 @@ namespace SWGrade.Desktop
         private bool grading;
         private bool sending;
         private Part3Report report;
+        private List<string> connectionLog;
 
         public MainWindow()
         {
@@ -36,15 +38,45 @@ namespace SWGrade.Desktop
             grading = true;
             UpdateActions();
             ConnectionStatus.Text = "正在检测 SOLIDWORKS…";
+            ExportConnectionLogButton.IsEnabled = false;
+            var lines = new List<string>();
             try
             {
-                var detection = await StaWorker.Run(() => CadAnalysis.Detect(null, null));
+                var detection = await StaWorker.Run(() => CadAnalysis.Detect(null, lines.Add));
                 cadYear = detection.CanAnalyze ? detection.ConnectedYear : null;
                 ConnectionStatus.Text = cadYear == null ? detection.Message : "已连接 SOLIDWORKS " + cadYear;
                 Status.Text = cadYear == null ? "" : "请选择标准件和你的模型。";
             }
-            catch (Exception exception) { Status.Text = CadAnalysis.DescribeError(exception); cadYear = null; }
-            finally { grading = false; UpdateActions(); }
+            catch (Exception exception)
+            {
+                string reason = CadAnalysis.DescribeError(exception);
+                lines.Add(reason);
+                ConnectionStatus.Text = reason;
+                Status.Text = "";
+                cadYear = null;
+            }
+            finally
+            {
+                connectionLog = lines;
+                ExportConnectionLogButton.IsEnabled = lines.Count > 0;
+                grading = false;
+                UpdateActions();
+            }
+        }
+
+        private void ExportConnectionLog(object sender, RoutedEventArgs args)
+        {
+            if (connectionLog == null)
+                return;
+            var dialog = new SaveFileDialog { Filter = "文本文件 (*.txt)|*.txt", FileName = "SWGrade-Compatibility.txt" };
+            if (dialog.ShowDialog(this) != true)
+                return;
+            try
+            {
+                File.WriteAllLines(dialog.FileName, connectionLog, System.Text.Encoding.UTF8);
+                Status.Text = "连接日志已导出。";
+            }
+            catch (Exception exception) { Status.Text = CadAnalysis.DescribeError(exception); }
         }
 
         private void UpdateActions()

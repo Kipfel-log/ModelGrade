@@ -55,13 +55,16 @@ namespace SWGrade.SolidWorks
                     throw new InvalidOperationException("当前登录会话未发现 SOLIDWORKS 进程。已安装时，请用当前账号启动 CAD，确认主窗口和许可证可用，再检测。");
                 }
 
-                string folder = Path.Combine(Path.GetDirectoryName(candidate.MainModule.FileName), "api", "redist");
+                interop.Log("正在读取运行中的 SOLIDWORKS 安装路径。");
+                string folder = Path.Combine(Path.GetDirectoryName(WindowsEnvironment.GetProcessImagePath(candidate)), "api", "redist");
+                interop.Log("读取 CAD API 目录：{0}", folder);
                 interop.Load(folder, CadInterop.Core);
                 interop.Load(folder, CadInterop.Constants);
 
                 object app;
                 try
                 {
+                    interop.Log("正在附加到 SOLIDWORKS 的 COM 对象。");
                     app = Marshal.GetActiveObject(WindowsEnvironment.CadProgId);
                 }
                 catch (COMException exception)
@@ -71,6 +74,7 @@ namespace SWGrade.SolidWorks
                 }
 
                 interop.Track(app);
+                interop.Log("正在核对 CAD 实例和版本。");
                 int actualPid = (int)interop.Call(AppInterface, app, "GetProcessID");
                 if (candidate.Id != actualPid)
                     throw new InvalidOperationException("COM 返回的实例与当前用户会话中预期的 SOLIDWORKS 进程不同。");
@@ -94,6 +98,7 @@ namespace SWGrade.SolidWorks
                     throw new InvalidOperationException("SOLIDWORKS 2026 不在 Windows 10 的官方支持范围内，停止模型分析。");
                 if (expectedYear != null && year != expectedYear)
                     throw new InvalidOperationException("已连接版本与预期版本不同。请切换预期版本或启动目标版本，再重新检测。");
+                interop.Log("正在确认 SOLIDWORKS 主窗口可交互。");
                 if (!(bool)interop.Get(AppInterface, app, "Visible") ||
                     !(bool)interop.Get(AppInterface, app, "UserControl"))
                     throw new InvalidOperationException("探针要求交互式可见实例。请先显示 SOLIDWORKS 主窗口。");

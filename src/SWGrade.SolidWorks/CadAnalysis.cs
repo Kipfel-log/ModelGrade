@@ -42,7 +42,9 @@ namespace SWGrade.SolidWorks
             }
             catch (Exception exception)
             {
-                report?.Invoke(DescribeError(exception));
+                for (var cause = exception; cause != null; cause = cause.InnerException)
+                    if (!(cause is TargetInvocationException) || cause.InnerException == null)
+                        report?.Invoke(cause.GetType().Name + " · " + DescribeError(cause));
                 if (exception is FileNotFoundException || exception is BadImageFormatException || exception is FileLoadException)
                     detection.Message = "SOLIDWORKS 的 API 组件缺失或无法载入。请用安装管理器检查或修复 CAD 安装。";
                 else if (detection.IsRunning == false && detection.InstalledYears.Count == 0)
@@ -50,7 +52,7 @@ namespace SWGrade.SolidWorks
                 else if (exception is InvalidOperationException)
                     detection.Message = exception.Message;
                 else
-                    detection.Message = "环境或 CAD 连接检查失败。请确认 CAD 主窗口、许可证以及运行权限，然后重试。原因可在设置开启开发模式后查看。";
+                    detection.Message = "CAD 连接检查失败 · " + DescribeError(exception);
             }
             return detection;
         }
@@ -265,6 +267,7 @@ namespace SWGrade.SolidWorks
 
             Action<string> log = report ?? (_ => { });
             WindowsEnvironment.Report(log, detection);
+            log("正在获取当前 Windows 会话的 CAD 分析锁。");
             using (var sessionLock = new Mutex(false, @"Local\SWGrade.SolidWorks"))
             {
                 bool acquired;

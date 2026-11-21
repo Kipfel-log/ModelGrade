@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
@@ -15,6 +17,7 @@ namespace SWGrade.SolidWorks
         internal const string CadProgId = "SldWorks.Application";
         private const int MinimumFrameworkRelease = 528040;
         private const int Windows10Build1903 = 18362;
+        private const uint QueryLimitedInformation = 0x1000;
 
         internal static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
 
@@ -117,7 +120,7 @@ namespace SWGrade.SolidWorks
             using (var current = WindowsIdentity.GetCurrent())
             {
                 // PROCESS_QUERY_LIMITED_INFORMATION is sufficient for OpenProcessToken.
-                using (var processHandle = OpenProcess(0x1000, false, process.Id))
+                using (var processHandle = OpenProcess(QueryLimitedInformation, false, process.Id))
                 {
                     if (processHandle.IsInvalid || !OpenProcessToken(processHandle, 0x0008, out var token))
                         throw new InvalidOperationException("无法确认 SOLIDWORKS 进程所属用户。请用与 CAD 相同的账号和权限运行探针。");
@@ -129,8 +132,28 @@ namespace SWGrade.SolidWorks
             }
         }
 
+        internal static string GetProcessImagePath(Process process)
+        {
+            using (var handle = OpenProcess(QueryLimitedInformation, false, process.Id))
+            {
+                var path = new StringBuilder(32768);
+                int length = path.Capacity;
+                if (handle.IsInvalid || !QueryFullProcessImageName(handle, 0, path, ref length))
+                {
+                    var error = new Win32Exception(Marshal.GetLastWin32Error());
+                    throw new InvalidOperationException(
+                        $"无法读取 SOLIDWORKS 进程路径（Windows 错误 {error.NativeErrorCode}）。{error.Message}", error);
+                }
+                return path.ToString();
+            }
+        }
+
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern SafeFileHandle OpenProcess(uint access, bool inherit, int processId);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryFullProcessImageName(SafeFileHandle process, uint flags, StringBuilder fileName, ref int size);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
