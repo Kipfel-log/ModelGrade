@@ -6,6 +6,9 @@
     <LangVersion>7.3</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(ClassroomLab1903)' == 'true'">
+    <DefineConstants>$(DefineConstants);SWGRADE_CLASSROOM_LAB_1903</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../SWGrade.Domain/SWGrade.Domain.csproj" />
     <Reference Include="System.Runtime.Serialization" />

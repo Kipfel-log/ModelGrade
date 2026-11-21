@@ -14,13 +14,31 @@ namespace SWGrade.SolidWorks
     {
         internal const string CadProgId = "SldWorks.Application";
         private const int MinimumFrameworkRelease = 528040;
+        private const int Windows10Build1903 = 18362;
 
         internal static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
+
+        private static bool IsLabTrial
+        {
+            get
+            {
+#if SWGRADE_CLASSROOM_LAB_1903
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+
+        internal static bool IsSupportedClientVersion(bool client, Version version) =>
+            client && version.Major == 10 && (version.Build >= 19045 || IsLabTrial && version.Build == Windows10Build1903);
 
         internal static void Report(Action<string> report, CadDetection detection = null)
         {
             var os = Environment.OSVersion.Version;
             void Log(string format, params object[] args) => report(string.Format(CultureInfo.InvariantCulture, format, args));
+            if (IsLabTrial)
+                Log("SWGrade 构建：Windows 10 1903 机房试用版（Windows 10 下使用 SOLIDWORKS 2025）。");
             using (var localMachine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
             using (var currentVersion = localMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
             using (var runtime = localMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"))
@@ -56,8 +74,11 @@ namespace SWGrade.SolidWorks
                 }
 
                 var issues = new List<string>();
-                if (!client || os.Major != 10 || os.Build < 19045)
-                    issues.Add($"Windows 版本不满足要求（检测到 {windows}，内部版本 {os.Build}）。需要 Windows 10 22H2 或 Windows 11。");
+                if (!IsSupportedClientVersion(client, os))
+                {
+                    string supported = IsLabTrial ? "Windows 10 1903、Windows 10 22H2 或 Windows 11" : "Windows 10 22H2 或 Windows 11";
+                    issues.Add($"Windows 版本不满足要求（检测到 {windows}，内部版本 {os.Build}）。需要 {supported}。");
+                }
                 if (!Environment.Is64BitOperatingSystem || !Environment.Is64BitProcess)
                     issues.Add("需要在 64 位 Windows 上运行 x64 版 SWGrade。");
                 if (release < MinimumFrameworkRelease)

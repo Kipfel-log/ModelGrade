@@ -13,6 +13,8 @@
 
 构建 `SWGrade.sln` 的 `Release|x64` 后，从各自项目的输出目录启动程序，分发时保留 EXE 旁的依赖文件。
 
+Windows 10 1903 x64 + SOLIDWORKS 2025 另有机房试用构建。[试用与验收说明](docs/classroom-lab-1903.md)
+
 ## 通用版使用说明
 
 以下内容对应主分支的通用版。
