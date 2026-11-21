@@ -9,7 +9,7 @@ using SWGrade.Domain;
 
 namespace SWGrade.SolidWorks
 {
-    public static class CadAnalysis
+    public static partial class CadAnalysis
     {
         public static ModelInspectionResult Run(string modelPath, string configuration, string expectedYear,
             bool probeUtilities, Action<string> report, SheetMetalMode sheetMetal = SheetMetalMode.Automatic)

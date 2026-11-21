@@ -11,12 +11,14 @@
     <LangVersion>7.3</LangVersion>
     <ApplicationIcon>Assets/SWGrade.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>SWGrade.Student</AssemblyName>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/SWGrade.ico" />
     <ProjectReference Include="../SWGrade.Infrastructure/SWGrade.Infrastructure.csproj" />
     <Reference Include="System.Windows.Forms" />
+    <ProjectReference Include="../SWGrade.Classroom/SWGrade.Classroom.csproj" />
     <ProjectReference Include="../SWGrade.SolidWorks/SWGrade.SolidWorks.csproj" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />

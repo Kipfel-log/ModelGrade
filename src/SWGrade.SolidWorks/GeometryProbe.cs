@@ -22,7 +22,7 @@ namespace SWGrade.SolidWorks
             noIntersect = cad.Constant("swBodyOperationError_e", "swBodyOperationNoIntersect");
         }
 
-        internal object CaptureSolid(object part)
+        internal object CaptureSolid(object part, bool allowSheetMetal = false)
         {
             var solids = cad.Call("IPartDoc", part, "GetBodies2", solid, false) as Array;
             int sheet = cad.Constant("swBodyType_e", "swSheetBody");
@@ -31,7 +31,7 @@ namespace SWGrade.SolidWorks
                 throw new InvalidOperationException("几何探针要求恰好一个实体，且没有曲面体。");
 
             object body = solids.GetValue(solids.GetLowerBound(0));
-            if ((bool)cad.Call(Body, body, "IsSheetMetal"))
+            if (!allowSheetMetal && (bool)cad.Call(Body, body, "IsSheetMetal"))
                 throw new InvalidOperationException("钣金折弯及展开配置需要单独核实，本阶段几何探针不比较钣金。");
             ValidateTopology(body);
             return CopySolid(body);

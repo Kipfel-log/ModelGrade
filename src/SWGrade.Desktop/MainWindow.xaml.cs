@@ -1,301 +1,198 @@
 using System;
-using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Automation;
-using System.Windows.Controls;
-using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using Wpf.Ui.Controls;
+using Microsoft.Win32;
+using SWGrade.Classroom;
+using SWGrade.Domain;
+using SWGrade.SolidWorks;
 
 namespace SWGrade.Desktop
 {
     public partial class MainWindow : Window
     {
-        private const int OverviewIndex = 0;
-        private const int AnalysisIndex = 1;
-        private const int ManageIndex = 2;
-        private const int BatchIndex = 3;
-        private const int RecordsIndex = 4;
-        private const int SettingsIndex = 5;
-
-        private readonly AppearanceSettings appearance = new AppearanceSettings();
-        private readonly ConnectionViewModel connection;
-        private readonly AnalysisViewModel analysis;
-        private readonly TeacherViewModel teacher;
-        private readonly HistoryViewModel history;
-        private readonly PageLink[] links;
-        private bool applyingNavigation;
-        private int activePage = -1;
-        private bool? sidebarPreference;
-        private bool? sidebarCollapsed;
+        private string reference;
+        private string student;
+        private string cadYear;
+        private bool grading;
+        private bool sending;
+        private Part3Report report;
 
         public MainWindow()
         {
-            appearance.ApplyPalette();
+            new AppearanceSettings().ApplyPalette();
             InitializeComponent();
-
-            var notices = new NotificationCenter();
-            Notifications.Connect(notices);
-            connection = new ConnectionViewModel(this, notices);
-            var workspace = new GradingWorkspace();
-            teacher = workspace.Connect(this, notices);
-            analysis = new AnalysisViewModel(this, () => connection.ExpectedYear, teacher.Jobs, notices);
-            var analyzer = new AnalysisWorkspace { DataContext = analysis };
-            history = new HistoryViewModel(teacher, () => GoTo(BatchIndex), notices);
-
-            var overview = new OverviewPage
-            {
-                DataContext = new OverviewViewModel(connection, teacher, history,
-                    () => OpenAnalysis(analysis.Reference.BrowseCommand),
-                    OpenStudentImport,
-                    () => OpenAnalysis(analysis.AnalyzeCommand),
-                    () => GoTo(RecordsIndex),
-                    () => GoTo(SettingsIndex))
-            };
-
-            var settings = new SettingsPage { DataContext = new SettingsViewModel(appearance, connection, teacher, analysis) };
-            var records = new HistoryPage { DataContext = history };
-            links = new[]
-            {
-                new PageLink("概览", SymbolRegular.AppsList24, overview),
-                new PageLink("模型分析", SymbolRegular.CubeMultiple24, analyzer),
-                new PageLink("作业管理", SymbolRegular.FolderOpen24, workspace),
-                new PageLink("批量批改", SymbolRegular.ClipboardTaskListLtr24, workspace),
-                new PageLink("批改记录", SymbolRegular.ClipboardClock24, records),
-                new PageLink("设置", SymbolRegular.ClipboardSettings24, settings)
-            };
-
-            teacher.PropertyChanged += TeacherChanged;
-            appearance.Changed += AppearanceChanged;
-            SystemParameters.StaticPropertyChanged += SystemAppearanceChanged;
-            Pages.ItemsSource = links.Take(SettingsIndex).ToArray();
-            Pages.SelectedIndex = OverviewIndex;
-            ApplyNavigationWidth();
-            Loaded += DetectOnStartup;
+            Loaded += Detect;
         }
 
-        private async void DetectOnStartup(object sender, RoutedEventArgs args)
+        private async void Detect(object sender, RoutedEventArgs args)
         {
-            Loaded -= DetectOnStartup;
-            await connection.CheckAsync(notify: false);
-        }
-
-        private void Navigate(object sender, SelectionChangedEventArgs args)
-        {
-            if (ReferenceEquals(args.Source, Pages) && links != null && Pages.SelectedIndex >= 0)
-                ShowPage(Pages.SelectedIndex);
-        }
-
-        private void OpenSettings(object sender, RoutedEventArgs args) => GoTo(SettingsIndex);
-
-        private void GoTo(int index)
-        {
-            Pages.SelectedIndex = index == SettingsIndex ? -1 : index;
-            ShowPage(index);
-        }
-
-        private void ShowPage(int index)
-        {
-            if (activePage == index)
+            if (grading)
                 return;
-            activePage = index;
-            if (index == SettingsIndex)
-                SettingsSelection.SetResourceReference(BackgroundProperty, "AccentSoft");
-            else
-                SettingsSelection.ClearValue(BackgroundProperty);
-
-            applyingNavigation = true;
+            Loaded -= Detect;
+            grading = true;
+            UpdateActions();
+            ConnectionStatus.Text = "正在检测 SOLIDWORKS…";
             try
             {
-                if (index == ManageIndex || index == BatchIndex)
-                    teacher.WorkspaceTab = index == ManageIndex ? 1 : 0;
-                PageContent.Content = links[index].View;
+                var detection = await StaWorker.Run(() => CadAnalysis.Detect(null, null));
+                cadYear = detection.CanAnalyze ? detection.ConnectedYear : null;
+                ConnectionStatus.Text = cadYear == null ? detection.Message : "已连接 SOLIDWORKS " + cadYear;
+                Status.Text = cadYear == null ? "请启动 SOLIDWORKS 后重新检测。" : "请选择标准件和你的模型。";
             }
-            finally
-            {
-                applyingNavigation = false;
-            }
-
-            if (SystemParameters.ClientAreaAnimation)
-            {
-                var transition = new DoubleAnimation(0.86, 1, TimeSpan.FromMilliseconds(140))
-                {
-                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                };
-                PageContent.BeginAnimation(OpacityProperty, transition);
-            }
-
-            if (index == OverviewIndex || index == RecordsIndex)
-                _ = history.RefreshAsync();
+            catch (Exception exception) { Status.Text = CadAnalysis.DescribeError(exception); cadYear = null; }
+            finally { grading = false; UpdateActions(); }
         }
 
-        private void TeacherChanged(object sender, PropertyChangedEventArgs args)
+        private void UpdateActions()
         {
-            if (args.PropertyName == nameof(TeacherViewModel.IsBusy) && !teacher.IsBusy &&
-                (activePage == OverviewIndex || activePage == RecordsIndex))
-                _ = history.RefreshAsync();
+            ModelForm.IsEnabled = cadYear != null && !grading;
+            AnalyzeButton.IsEnabled = ModelForm.IsEnabled && reference != null && student != null;
+        }
 
-            if (args.PropertyName != nameof(TeacherViewModel.WorkspaceTab) || applyingNavigation)
+        private void PickReference(object sender, RoutedEventArgs args)
+        {
+            var path = SelectFile("选择正式标准件", "SOLIDWORKS 零件 (*.SLDPRT)|*.SLDPRT");
+            if (path == null)
                 return;
-            if (activePage == ManageIndex || activePage == BatchIndex)
-                GoTo(teacher.WorkspaceTab == 1 ? ManageIndex : BatchIndex);
+            reference = path;
+            ReferenceName.Text = Path.GetFileName(path);
+            ClearResult();
         }
 
-        private void OpenAnalysis(System.Windows.Input.ICommand action)
+        private void PickStudent(object sender, RoutedEventArgs args)
         {
-            GoTo(AnalysisIndex);
-            if (action.CanExecute(null))
-                action.Execute(null);
+            var path = SelectFile("选择学生模型", "SOLIDWORKS 零件 (*.SLDPRT)|*.SLDPRT");
+            if (path != null)
+                SetStudent(path);
         }
 
-        private void OpenStudentImport()
+        private async void UseActive(object sender, RoutedEventArgs args)
         {
-            if (teacher.Current == null)
+            grading = true;
+            UpdateActions();
+            try
             {
-                GoTo(ManageIndex);
-                if (teacher.NewDraftCommand.CanExecute(null))
-                    teacher.NewDraftCommand.Execute(null);
+                var part = await StaWorker.Run(() => CadAnalysis.GetActivePart(cadYear, null));
+                if (part?.CanRead != true || part.NeedsSave)
+                    throw new InvalidOperationException("请先在 SOLIDWORKS 中保存当前零件。");
+                SetStudent(part.Path);
+            }
+            catch (Exception exception) { Status.Text = CadAnalysis.DescribeError(exception); }
+            finally { grading = false; UpdateActions(); }
+        }
+
+        private void SetStudent(string path)
+        {
+            student = path;
+            StudentModelName.Text = Path.GetFileName(path);
+            ClearResult();
+        }
+
+        private void ClearResult()
+        {
+            report = null;
+            ResultPanel.Visibility = Visibility.Collapsed;
+            Status.Text = "";
+            UpdateActions();
+        }
+
+        private async void Analyze(object sender, RoutedEventArgs args)
+        {
+            if (!AnalyzeButton.IsEnabled)
                 return;
+            grading = true;
+            ClearResult();
+            Status.Text = "正在提取建模步骤，比较抽壳和展开后的实体…";
+            try
+            {
+                report = await StaWorker.Run(() => CadAnalysis.GradePart3(reference, student, cadYear, null));
+                Score.Text = report.Score;
+                ShellSummary.Text = "抽壳后 · " + report.Shell.Display;
+                FlatSummary.Text = "平板型式后 · " + report.Flat.Display;
+                Steps.ItemsSource = report.Lines;
+                ResultPanel.Visibility = Visibility.Visible;
+                Status.Text = "判分完成。可填写学号和姓名后导出或提交。";
             }
-
-            GoTo(BatchIndex);
-            if (teacher.ImportFilesCommand.CanExecute(null))
-                teacher.ImportFilesCommand.Execute(null);
+            catch (Exception exception) { Status.Text = CadAnalysis.DescribeError(exception); }
+            finally { grading = false; UpdateActions(); }
         }
 
-        protected override void OnSourceInitialized(EventArgs e)
+        private Part3Report Submission()
         {
-            base.OnSourceInitialized(e);
-            var handle = new WindowInteropHelper(this).Handle;
-            ApplyWindowAppearance();
-            var source = HwndSource.FromHwnd(handle);
-            if (source?.CompositionTarget == null)
+            if (report == null)
+                throw new InvalidOperationException("请先完成判分。");
+            report.StudentId = StudentId.Text.Trim();
+            report.StudentName = StudentName.Text.Trim();
+            if (report.StudentId.Length == 0 || report.StudentName.Length == 0)
+                throw new ArgumentException("请先填写学号和姓名。");
+            return report;
+        }
+
+        private void Export(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                var data = ClassroomFiles.Encode(Submission());
+                var dialog = new SaveFileDialog { Filter = "零件 3 成绩 (*.part3.json)|*.part3.json", FileName = "零件3-成绩.part3.json" };
+                if (dialog.ShowDialog(this) != true)
+                    return;
+                File.WriteAllBytes(dialog.FileName, data);
+                Status.Text = "成绩文件已导出。";
+            }
+            catch (Exception exception) { Status.Text = exception.Message; }
+        }
+
+        private async void FindTeacher(object sender, RoutedEventArgs args)
+        {
+            if (sending)
                 return;
-
-            var workArea = System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
-            var logicalSize = source.CompositionTarget.TransformFromDevice.Transform(new Vector(workArea.Width, workArea.Height));
-            Width = Math.Max(MinWidth, Math.Min(Width, logicalSize.X - 12));
-            Height = Math.Max(MinHeight, Math.Min(Height, logicalSize.Y - 12));
+            sending = true;
+            Status.Text = "正在查找同一局域网的教师大屏…";
+            try
+            {
+                var addresses = await ClassroomTransport.FindAsync();
+                TeacherAddress.ItemsSource = addresses.Select(address => address.ToString()).ToArray();
+                if (addresses.Length == 1)
+                    TeacherAddress.SelectedIndex = 0;
+                Status.Text = addresses.Length == 0 ? "未发现大屏。可填写教师大屏上显示的 IP，或交成绩文件。" : "请选择教师 IP 并填写课堂码。";
+            }
+            catch (Exception exception) { Status.Text = exception.Message; }
+            finally { sending = false; }
         }
 
-        private void WindowResized(object sender, SizeChangedEventArgs args) => ApplyNavigationWidth();
+        private async void Submit(object sender, RoutedEventArgs args) => await SendAsync(() => Submission());
 
-        private void ToggleSidebar(object sender, RoutedEventArgs args)
+        private async void Upload(object sender, RoutedEventArgs args)
         {
-            sidebarPreference = !(sidebarCollapsed ?? false);
-            ApplyNavigationWidth();
+            var path = SelectFile("选择已导出的成绩文件", "零件 3 成绩 (*.part3.json)|*.part3.json");
+            if (path != null)
+                await SendAsync(() => ClassroomFiles.Read(path));
         }
 
-        private void ApplyNavigationWidth()
+        private async Task SendAsync(Func<Part3Report> read)
         {
-            if (NavigationPane == null || SidebarToggle == null || SettingsLabel == null)
+            if (sending)
                 return;
-
-            double width = ActualWidth > 0 ? ActualWidth : Width;
-            bool collapse = sidebarPreference ?? width < 1090;
-            if (sidebarCollapsed == collapse)
-                return;
-            sidebarCollapsed = collapse;
-
-            var visibility = collapse ? Visibility.Collapsed : Visibility.Visible;
-            Pages.Tag = visibility;
-            SidebarToggle.Tag = visibility.ToString();
-            SettingsButton.Tag = visibility.ToString();
-            SettingsLabel.Visibility = visibility;
-            string action = collapse ? "展开导航" : "折叠导航";
-            SidebarToggle.ToolTip = action;
-            AutomationProperties.SetName(SidebarToggle, action);
-
-            double current = NavigationPane.Width;
-            double target = collapse ? 60 : 232;
-            NavigationPane.BeginAnimation(WidthProperty, null);
-            NavigationPane.Width = target;
-            if (IsLoaded && SystemParameters.ClientAreaAnimation)
+            sending = true;
+            try
             {
-                NavigationPane.BeginAnimation(WidthProperty,
-                    new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(170))
-                    {
-                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
-                        FillBehavior = FillBehavior.Stop
-                    });
+                if (!IPAddress.TryParse(TeacherAddress.Text.Trim(), out var address) || address.AddressFamily != AddressFamily.InterNetwork)
+                    throw new ArgumentException("请先选择或填写教师大屏的 IPv4 地址。");
+                await ClassroomTransport.SendAsync(address, ClassCode.Text.Trim(), read());
+                Status.Text = "教师大屏已接收成绩。";
             }
+            catch (Exception exception) { Status.Text = "发送失败 · " + exception.Message; }
+            finally { sending = false; }
         }
 
-        private void AppearanceChanged(object sender, EventArgs args)
+        private string SelectFile(string title, string filter)
         {
-            appearance.ApplyPalette();
-            ApplyWindowAppearance();
-        }
-
-        private void ApplyWindowAppearance()
-        {
-            var source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-            if (source?.CompositionTarget == null)
-                return;
-
-            bool mica = NativeWindowAppearance.Apply(source.Handle,
-                appearance.IsDark && !SystemParameters.HighContrast, appearance.CanUseMica());
-            if (mica)
-            {
-                Background = Brushes.Transparent;
-                source.CompositionTarget.BackgroundColor = Colors.Transparent;
-            }
-            else
-            {
-                SetResourceReference(BackgroundProperty, "Canvas");
-                if (Background is SolidColorBrush canvas)
-                    source.CompositionTarget.BackgroundColor = canvas.Color;
-            }
-            NavigationPane.SetResourceReference(BackgroundProperty, mica ? "NavigationMica" : "NavigationSurface");
-            appearance.MaterialState = mica ? "原生 Mica 已启用" : "不透明 Fluent 背景";
-        }
-
-        private void SystemAppearanceChanged(object sender, PropertyChangedEventArgs args)
-        {
-            if (args.PropertyName == nameof(SystemParameters.HighContrast))
-                Dispatcher.InvokeAsync(() => AppearanceChanged(this, EventArgs.Empty));
-        }
-
-        protected override void OnClosing(CancelEventArgs e)
-        {
-            if (analysis.IsBusy)
-            {
-                e.Cancel = true;
-                analysis.ShowCloseMessage();
-            }
-            if (connection.IsBusy)
-                e.Cancel = true;
-            if (teacher.IsBusy)
-            {
-                e.Cancel = true;
-                teacher.ShowCloseMessage();
-            }
-            base.OnClosing(e);
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            SystemParameters.StaticPropertyChanged -= SystemAppearanceChanged;
-            appearance.Changed -= AppearanceChanged;
-            teacher.PropertyChanged -= TeacherChanged;
-            teacher.Dispose();
-            base.OnClosed(e);
-        }
-
-        private sealed class PageLink
-        {
-            internal PageLink(string label, SymbolRegular icon, UserControl view)
-            {
-                Label = label;
-                Icon = icon;
-                View = view;
-            }
-
-            public string Label { get; }
-            public SymbolRegular Icon { get; }
-            internal UserControl View { get; }
+            var dialog = new OpenFileDialog { Title = title, Filter = filter, CheckFileExists = true };
+            return dialog.ShowDialog(this) == true ? dialog.FileName : null;
         }
     }
 }
