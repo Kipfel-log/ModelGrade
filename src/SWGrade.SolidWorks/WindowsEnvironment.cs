@@ -13,6 +13,7 @@ namespace SWGrade.SolidWorks
     internal static class WindowsEnvironment
     {
         internal const string CadProgId = "SldWorks.Application";
+        private const int MinimumFrameworkRelease = 528040;
 
         internal static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
 
@@ -41,7 +42,7 @@ namespace SWGrade.SolidWorks
                 {
                     detection.Windows = windows;
                     detection.IsX64 = Environment.Is64BitOperatingSystem && Environment.Is64BitProcess;
-                    detection.HasFramework48 = release >= 528040;
+                    detection.HasFramework48 = release >= MinimumFrameworkRelease;
                 }
 
                 var installed = new List<int>();
@@ -54,9 +55,15 @@ namespace SWGrade.SolidWorks
                     detection.InstallationChecked = true;
                 }
 
-                if (!client || os.Major != 10 || os.Build < 19045 ||
-                    !Environment.Is64BitOperatingSystem || !Environment.Is64BitProcess || release < 528040)
-                    throw new InvalidOperationException("请检查系统环境。SWGrade 需要 Windows 10 22H2 或 Windows 11、x64 和 .NET Framework 4.8 或更高版本。");
+                var issues = new List<string>();
+                if (!client || os.Major != 10 || os.Build < 19045)
+                    issues.Add($"Windows 版本不满足要求（检测到 {windows}，内部版本 {os.Build}）。需要 Windows 10 22H2 或 Windows 11。");
+                if (!Environment.Is64BitOperatingSystem || !Environment.Is64BitProcess)
+                    issues.Add("需要在 64 位 Windows 上运行 x64 版 SWGrade。");
+                if (release < MinimumFrameworkRelease)
+                    issues.Add("未检测到 .NET Framework 4.8 或更新版本。可运行学生端离线包中的微软安装程序。");
+                if (issues.Count != 0)
+                    throw new InvalidOperationException(string.Join(" ", issues));
             }
 
             using (var classes = RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, RegistryView.Registry64))

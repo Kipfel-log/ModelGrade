@@ -4,6 +4,8 @@
 
 本分支提供两个独立的 Windows x64 程序，均需 .NET Framework 4.8 或更新版本。
 
+学生端离线包附带微软的 .NET Framework 4.8 运行时。在缺少运行时的电脑上，完整解压后运行 `prerequisites\NDP48-x86-x64-AllOS-ENU.exe`，安装需要管理员权限。若安装程序提示重新启动，请重启后再打开学生端。学生端会分别报告 Windows 版本、位数和 .NET Framework 检测结果。[微软离线安装程序](https://dotnet.microsoft.com/zh-cn/download/dotnet-framework/thank-you/net48-offline-installer)
+
 - **学生端 `SWGrade.Student.exe`**。启动 SOLIDWORKS，选择发放的原版 `零件3.SLDPRT` 和已保存的学生件。结果列出基础建模 40 分、钣金 60 分的得分依据，以及抽壳后和平板型式后的原始 CAD 坐标实体差异。
 - **教师端 `SWGrade.Teacher.exe`**。启动即可显示课堂码和局域网地址，无需安装 SOLIDWORKS。统计页显示提交人数、平均分、最高分、待复核人数、分数段柱状图和各步骤扣分人数。点击「提交明细」查看单个学号的结果，点击「全屏」投屏，按 Esc 退出全屏。
 - 学生可发现局域网内的教师端，也可手动填写教师端 IPv4 地址和课堂码。两种方式均可发送本次成绩或上传已导出的 `.part3.json`。教室网络不可用时，教师端可直接批量导入文件。接收使用 TCP 和 UDP 47936。
