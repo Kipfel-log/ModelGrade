@@ -11,5 +11,6 @@
     <Compile Include="../../src/SWGrade.SolidWorks/DatumRegistration.cs" Link="DatumRegistration.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/SurfaceDeviation.cs" Link="SurfaceDeviation.cs" />
     <Compile Include="../../src/SWGrade.SolidWorks/InspectionJson.cs" Link="InspectionJson.cs" />
+    <Compile Include="../../src/SWGrade.Teacher/ClassroomStatistics.cs" Link="ClassroomStatistics.cs" />
   </ItemGroup>
 </Project>

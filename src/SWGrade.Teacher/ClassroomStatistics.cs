@@ -19,9 +19,11 @@ namespace SWGrade.Teacher
         internal ClassroomStatistics(IEnumerable<Part3Report> reports)
         {
             var results = reports.ToArray();
-            var final = results.Where(report => report.Pending == 0).Select(report => report.Earned).ToArray();
+            var scores = results.Select(report => new { Earned = report.Earned, NeedsReview = report.Pending > 0 }).ToArray();
+            var final = scores.Where(score => !score.NeedsReview).Select(score => score.Earned).ToArray();
+            var pending = scores.Where(score => score.NeedsReview).Select(score => score.Earned).ToArray();
             Submitted = results.Length;
-            Pending = Submitted - final.Length;
+            Pending = pending.Length;
             if (final.Length > 0)
             {
                 Average = final.Average();
@@ -29,10 +31,18 @@ namespace SWGrade.Teacher
             }
 
             Distribution = Lower.Select((min, index) =>
-                new ScoreColumn(min, Upper[index], final.Count(score => score >= min && score <= Upper[index]))).ToArray();
+            {
+                int max = Upper[index];
+                return new ScoreColumn(min, max, final.Count(score => score >= min && score <= max),
+                    pending.Count(score => score >= min && score <= max));
+            }).ToArray();
             int peak = Distribution.Max(column => column.Count);
+            double heightPerStudent = peak == 0 ? 0 : 145.0 / peak;
             foreach (var column in Distribution)
-                column.Height = peak == 0 ? 0 : 145.0 * column.Count / peak;
+            {
+                column.FinalHeight = heightPerStudent * column.FinalCount;
+                column.PendingHeight = heightPerStudent * column.PendingCount;
+            }
 
             Breakdown = results.SelectMany(report => report.Lines
                     .Where(line => line.Points.HasValue && line.Points.Value < line.Maximum)
@@ -48,15 +58,20 @@ namespace SWGrade.Teacher
 
         public sealed class ScoreColumn
         {
-            internal ScoreColumn(int min, int max, int count)
+            internal ScoreColumn(int min, int max, int finalCount, int pendingCount)
             {
                 Range = min + "–" + max;
-                Count = count;
+                FinalCount = finalCount;
+                PendingCount = pendingCount;
             }
 
             public string Range { get; }
-            public int Count { get; }
-            public double Height { get; internal set; }
+            public int FinalCount { get; }
+            public int PendingCount { get; }
+            public int Count => FinalCount + PendingCount;
+            public double FinalHeight { get; internal set; }
+            public double PendingHeight { get; internal set; }
+            public string Description => $"{Range} 分 · 完整成绩 {FinalCount} 人 · 待复核 {PendingCount} 人";
         }
 
         public sealed class StepBar

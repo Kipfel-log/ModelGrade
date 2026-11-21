@@ -79,7 +79,7 @@ namespace SWGrade.Teacher
             Pending.Text = stats.Pending.ToString();
             Distribution.ItemsSource = stats.Distribution;
             Breakdown.ItemsSource = stats.Breakdown;
-            DistributionState.Text = stats.Submitted == stats.Pending ? "收到完整成绩后显示分布" : "按完整成绩统计 · 人数";
+            DistributionState.Text = stats.Submitted == 0 ? "收到提交后显示分布" : "待复核成绩按当前已得分统计";
             BreakdownState.Text = stats.Breakdown.Length == 0 ? "暂无已确认扣分" : "按涉及人数排序";
             BreakdownState.Visibility = stats.Breakdown.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         }

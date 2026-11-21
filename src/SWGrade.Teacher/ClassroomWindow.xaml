@@ -84,10 +84,10 @@
                                 <StackPanel><TextBlock Text="已提交" Style="{StaticResource Caption}"/><TextBlock x:Name="ReceivedCount" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-                                <StackPanel><TextBlock Text="平均分" Style="{StaticResource Caption}"/><TextBlock x:Name="Average" Style="{StaticResource Metric}"/></StackPanel>
+                                <StackPanel><TextBlock Text="完整成绩平均分" Style="{StaticResource Caption}"/><TextBlock x:Name="Average" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-                                <StackPanel><TextBlock Text="最高分" Style="{StaticResource Caption}"/><TextBlock x:Name="Best" Style="{StaticResource Metric}"/></StackPanel>
+                                <StackPanel><TextBlock Text="完整成绩最高分" Style="{StaticResource Caption}"/><TextBlock x:Name="Best" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
                                 <StackPanel><TextBlock Text="待复核人数" Style="{StaticResource Caption}"/><TextBlock x:Name="Pending" Style="{StaticResource Metric}" Foreground="{StaticResource Gold}"/></StackPanel>
@@ -97,16 +97,27 @@
                             <Border Style="{StaticResource Card}" VerticalAlignment="Top" Margin="0,0,6,0">
                                 <StackPanel>
                                     <TextBlock Text="成绩分布" FontSize="23" FontWeight="SemiBold"/>
-                                    <TextBlock x:Name="DistributionState" Style="{StaticResource Caption}" Margin="0,3,0,12"/>
+                                    <TextBlock x:Name="DistributionState" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,3,0,7"/>
+                                    <WrapPanel Margin="0,0,0,8">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                            <Border Width="10" Height="10" Background="{StaticResource Blue}" CornerRadius="2" Margin="0,0,6,0"/>
+                                            <TextBlock Text="完整成绩" Foreground="{StaticResource Blue}" FontSize="14"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="10" Height="10" Background="{StaticResource Gold}" CornerRadius="2" Margin="0,0,6,0"/>
+                                            <TextBlock Text="待复核" Foreground="{StaticResource Gold}" FontSize="14"/>
+                                        </StackPanel>
+                                    </WrapPanel>
                                     <ItemsControl x:Name="Distribution">
                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="5"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <StackPanel>
+                                                <StackPanel ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Description}">
                                                     <Grid Height="177">
                                                         <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
-                                                            <TextBlock Text="{Binding Count}" Foreground="{StaticResource Blue}" FontWeight="SemiBold" FontSize="21" HorizontalAlignment="Center"/>
-                                                            <Border Height="{Binding Height}" Width="34" CornerRadius="4,4,0,0" Background="{StaticResource Blue}"/>
+                                                            <TextBlock Text="{Binding Count}" FontWeight="SemiBold" FontSize="21" HorizontalAlignment="Center"/>
+                                                            <Border Height="{Binding PendingHeight}" Width="34" Background="{StaticResource Gold}"/>
+                                                            <Border Height="{Binding FinalHeight}" Width="34" Background="{StaticResource Blue}"/>
                                                         </StackPanel>
                                                     </Grid>
                                                     <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource Border}" Padding="0,6,0,0">

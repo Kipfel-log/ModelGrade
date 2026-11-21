@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using SWGrade.SolidWorks;
 using SWGrade.Domain;
+using SWGrade.Teacher;
 
 namespace SWGrade.Probe
 {
@@ -53,11 +54,39 @@ namespace SWGrade.Probe
                 CheckJson(folder);
                 CheckGeometryProbeValidation();
                 CheckSavedPlacement(folder);
+                CheckClassroomDistribution();
                 Console.WriteLine("云端纯逻辑检查通过。未执行 SOLIDWORKS COM。");
             }
             finally
             {
                 Directory.Delete(folder, true);
+            }
+        }
+
+        private static void CheckClassroomDistribution()
+        {
+            var empty = new ClassroomStatistics(Array.Empty<Part3Report>());
+            Require(empty.Distribution.All(column => column.Count == 0 && column.FinalHeight == 0 && column.PendingHeight == 0),
+                "空课堂的成绩分布不显示柱高");
+
+            var pending = new ClassroomStatistics(new[] { Score(58, 12), Score(72, 10), Score(72, 5) });
+            Require(pending.Pending == 3 && pending.Distribution.Select(column => column.PendingCount).SequenceEqual(new[] { 1, 0, 2, 0, 0 }) &&
+                pending.Distribution[2].PendingHeight > 0 && pending.Average == null && pending.Best == null,
+                "所有提交待复核时按已得分显示柱状图");
+
+            var mixed = new ClassroomStatistics(new[] { Score(59, 5), Score(72), Score(72, 12), Score(100) });
+            Require(mixed.Distribution.Sum(column => column.Count) == mixed.Submitted &&
+                mixed.Distribution[2].FinalCount == 1 && mixed.Distribution[2].PendingCount == 1 &&
+                mixed.Distribution[2].FinalHeight > 0 && mixed.Distribution[2].PendingHeight > 0 &&
+                mixed.Distribution[4].FinalCount == 1 && mixed.Average == 86 && mixed.Best == 100,
+                "同一分数段区分两种成绩，平均分和最高分取完整成绩");
+
+            Part3Report Score(int earned, int awaiting = 0)
+            {
+                var lines = awaiting == 0
+                    ? new[] { new Part3ScoreLine { Maximum = 100, Points = earned } }
+                    : new[] { new Part3ScoreLine { Maximum = 100 - awaiting, Points = earned }, new Part3ScoreLine { Maximum = awaiting } };
+                return new Part3Report { Lines = lines };
             }
         }
 
