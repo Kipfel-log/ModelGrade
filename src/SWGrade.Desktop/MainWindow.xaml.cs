@@ -45,7 +45,7 @@ namespace SWGrade.Desktop
                 var detection = await StaWorker.Run(() => CadAnalysis.Detect(null, lines.Add));
                 cadYear = detection.CanAnalyze ? detection.ConnectedYear : null;
                 ConnectionStatus.Text = cadYear == null ? detection.Message : "已连接 SOLIDWORKS " + cadYear;
-                Status.Text = cadYear == null ? "" : "请选择标准件和你的模型。";
+                Status.Text = cadYear == null ? detection.RecommendedAction : "请选择标准件和你的模型。";
             }
             catch (Exception exception)
             {

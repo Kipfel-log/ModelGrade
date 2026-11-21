@@ -48,6 +48,7 @@ namespace SWGrade.SolidWorks
             {
                 bool client = string.Equals(currentVersion?.GetValue("InstallationType") as string,
                     "Client", StringComparison.OrdinalIgnoreCase);
+                bool supportedVersion = IsSupportedClientVersion(client, os);
                 string windows = os.Major == 10 && client ? (IsWindows11 ? "Windows 11" : "Windows 10") : "其他 Windows";
                 Log("Windows：{0}，版本 {1}.{2}，build {3}.{4}，{5}，{6}",
                     windows,
@@ -62,6 +63,7 @@ namespace SWGrade.SolidWorks
                 if (detection != null)
                 {
                     detection.Windows = windows;
+                    detection.IsWindowsSupported = supportedVersion;
                     detection.IsX64 = Environment.Is64BitOperatingSystem && Environment.Is64BitProcess;
                     detection.HasFramework48 = release >= MinimumFrameworkRelease;
                 }
@@ -77,7 +79,7 @@ namespace SWGrade.SolidWorks
                 }
 
                 var issues = new List<string>();
-                if (!IsSupportedClientVersion(client, os))
+                if (!supportedVersion)
                 {
                     string supported = IsLabTrial ? "Windows 10 1903、Windows 10 22H2 或 Windows 11" : "Windows 10 22H2 或 Windows 11";
                     issues.Add($"Windows 版本不满足要求（检测到 {windows}，内部版本 {os.Build}）。需要 {supported}。");
@@ -123,7 +125,8 @@ namespace SWGrade.SolidWorks
                 using (var processHandle = OpenProcess(QueryLimitedInformation, false, process.Id))
                 {
                     if (processHandle.IsInvalid || !OpenProcessToken(processHandle, 0x0008, out var token))
-                        throw new InvalidOperationException("无法确认 SOLIDWORKS 进程所属用户。请用与 CAD 相同的账号和权限运行探针。");
+                        throw new InvalidOperationException("无法确认 SOLIDWORKS 进程所属用户。",
+                            new Win32Exception(Marshal.GetLastWin32Error()));
 
                     using (token)
                     using (var owner = new WindowsIdentity(token.DangerousGetHandle()))

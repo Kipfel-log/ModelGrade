@@ -5,8 +5,8 @@
 ## 单机验收
 
 1. 完整解压到可写目录。使用同一个 Windows 账号、同样的权限启动 SOLIDWORKS 2025 和学生端。等 SOLIDWORKS 主界面和许可证就绪。
-2. 双击 `Check-Lab1903.cmd`。它会在目录中生成 `SWGrade-Compatibility.txt`，记录 Windows 版本、.NET Framework、CAD 版本和连接结果。探针退出码 0 表示已连接到期望的 CAD。
-3. 打开 `SWGrade.Student.exe`，标准件选 `reference\零件3.SLDPRT`，再把同一文件选为学生件。预期 100 分，抽壳后和平板型式后两处偏差均为 0。标准件的最后保存版本由 SOLIDWORKS 版本历史确认为 2025。
+2. 双击 `Check-Lab1903.cmd`。它会检查系统、CAD 连接和随包标准件。连接成功后会用标准件自比，核对 100 分、抽壳与展开偏差为 0。报告 `SWGrade-Compatibility.txt` 的顶部给出结论和处理建议，末尾列出检测步骤和原始错误。
+3. 检查通过后，打开 `SWGrade.Student.exe` 并选择 `reference\零件3.SLDPRT` 为标准件。标准件的最后保存版本由 SOLIDWORKS 版本历史确认为 2025。
 4. 用一份已知错误的学生件验证扣分。抽壳厚度从 1.0 mm 改为 1.2 mm 的样例，抽壳参数项应扣 8 分。如果几何结果无法核实，该项应标为待复核。
 5. 用课上样件判分，导出 `.part3.json`，再发送到教师大屏并核对分数。连接失败时，在学生端点击「导出连接日志」，保存这次检测的步骤和原始错误。
 

@@ -53,6 +53,7 @@ namespace SWGrade.SolidWorks
                     detection.Message = exception.Message;
                 else
                     detection.Message = "CAD 连接检查失败 · " + DescribeError(exception);
+                detection.RecommendedAction = CadConnectionAdvice.For(detection, expectedYear, exception);
             }
             return detection;
         }

@@ -6,6 +6,7 @@ namespace SWGrade.SolidWorks
     public sealed class CadDetection
     {
         public string Windows { get; internal set; }
+        public bool? IsWindowsSupported { get; internal set; }
         public bool IsX64 { get; internal set; }
         public bool HasFramework48 { get; internal set; }
         public IReadOnlyList<int> InstalledYears { get; internal set; } = Array.Empty<int>();
@@ -16,5 +17,6 @@ namespace SWGrade.SolidWorks
         public string ConnectedYear { get; internal set; }
         public bool CanAnalyze { get; internal set; }
         public string Message { get; internal set; }
+        public string RecommendedAction { get; internal set; }
     }
 }

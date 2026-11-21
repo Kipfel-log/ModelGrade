@@ -55,12 +55,28 @@ namespace SWGrade.Probe
                 CheckGeometryProbeValidation();
                 CheckSavedPlacement(folder);
                 CheckClassroomDistribution();
+                CheckCadConnectionAdvice();
                 Console.WriteLine("云端纯逻辑检查通过。未执行 SOLIDWORKS COM。");
             }
             finally
             {
                 Directory.Delete(folder, true);
             }
+        }
+
+        private static void CheckCadConnectionAdvice()
+        {
+            var ready = new CadDetection { Windows = "Windows 10", IsWindowsSupported = true, IsX64 = true, HasFramework48 = true };
+            var busy = new System.Reflection.TargetInvocationException(
+                new System.Runtime.InteropServices.COMException("fixture", unchecked((int)0x8001010A)));
+            Require(CadConnectionAdvice.For(ready, "2025", busy).Contains("欢迎窗口"), "嵌套的 CAD 忙碌错误提示关闭对话框");
+            var access = new InvalidOperationException("fixture", new System.ComponentModel.Win32Exception(5));
+            Require(CadConnectionAdvice.For(ready, "2025", access).Contains("相同权限"), "进程访问被拒绝时提示核对权限");
+            Require(CadConnectionAdvice.For(ready, "2025", new FileNotFoundException()).Contains("安装管理器"), "API 文件缺失时提示修复 CAD");
+            ready.IsRunning = false;
+            ready.InstalledYears = new[] { 2025 };
+            Require(CadConnectionAdvice.For(ready, "2025", new InvalidOperationException()).Contains("已安装的 SOLIDWORKS 2025"),
+                "已安装但未启动时给出目标版本");
         }
 
         private static void CheckClassroomDistribution()
