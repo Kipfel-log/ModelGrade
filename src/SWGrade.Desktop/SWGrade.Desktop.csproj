@@ -11,6 +11,7 @@
     <LangVersion>7.3</LangVersion>
     <ApplicationIcon>Assets/SWGrade.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(ClassroomLab1903)' == 'true'">app.lab1903.manifest</ApplicationManifest>
     <AssemblyName>SWGrade.Student</AssemblyName>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>

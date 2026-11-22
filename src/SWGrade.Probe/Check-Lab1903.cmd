@@ -8,9 +8,12 @@ set "frameworkRelease="
 for /f "tokens=3" %%A in ('reg.exe query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release /reg:64 2^>nul') do set /a "frameworkRelease=%%A"
 if not defined frameworkRelease goto framework
 if %frameworkRelease% LSS 528040 goto framework
-"%~dp0SWGrade.Probe.exe" --lab-check > "%log%" 2>&1
+"%~dp0SWGrade.Probe.exe" --lab-check-admin
 set "result=%errorlevel%"
-goto show
+if "%result%"=="0" goto show
+if "%result%"=="4" goto show
+echo The diagnostic did not produce a new report. Approve the administrator prompt and check that the folder is writable.
+goto done
 
 :incomplete
 > "%log%" echo The diagnostic program is missing. Extract the full SWGrade ZIP to a local folder.
@@ -23,8 +26,9 @@ set "result=4"
 
 :show
 type "%log%"
+echo Report: "%log%"
+:done
 echo(
 echo Probe exit code: %result%
-echo Report: "%log%"
 pause
 exit /b %result%

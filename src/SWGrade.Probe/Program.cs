@@ -20,7 +20,11 @@ namespace SWGrade.Probe
             }
 
             if (args.Length == 1 && args[0] == "--lab-check")
-                return LabCheckCommand.Run();
+                return LabCheckCommand.Run(Console.Out);
+            if (args.Length == 1 && args[0] == "--lab-check-admin")
+                return LabCheckCommand.RunAsAdministrator();
+            if (args.Length == 1 && args[0] == "--lab-check-report")
+                return LabCheckCommand.RunToReport();
 
             if (args.Length > 0 && args[0] == "--geometry")
             {
@@ -141,6 +145,7 @@ namespace SWGrade.Probe
         {
             Console.WriteLine("SWGrade.Probe.exe [--expect 2025|2026]");
             Console.WriteLine("SWGrade.Probe.exe --lab-check");
+            Console.WriteLine("SWGrade.Probe.exe --lab-check-admin");
             Console.WriteLine("SWGrade.Probe.exe --expect 2025|2026 --model \"C:\\样本\\零件.SLDPRT\" [--config \"配置名\"] [--json \"结果.json\"]");
             Console.WriteLine("SWGrade.Probe.exe --list-open [--expect 2025|2026]");
             Console.WriteLine("SWGrade.Probe.exe --active [--expect 2025|2026] [--config \"配置名\"] [--json \"结果.json\"]");
