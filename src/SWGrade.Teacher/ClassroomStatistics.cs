@@ -24,10 +24,10 @@ namespace SWGrade.Teacher
             var pending = scores.Where(score => score.NeedsReview).Select(score => score.Earned).ToArray();
             Submitted = results.Length;
             Pending = pending.Length;
-            if (final.Length > 0)
+            if (scores.Length > 0)
             {
-                Average = final.Average();
-                Best = final.Max();
+                Average = scores.Average(score => score.Earned);
+                Best = scores.Max(score => score.Earned);
             }
 
             Distribution = Lower.Select((min, index) =>

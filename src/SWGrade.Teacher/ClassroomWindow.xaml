@@ -84,10 +84,10 @@
                                 <StackPanel><TextBlock Text="已提交" Style="{StaticResource Caption}"/><TextBlock x:Name="ReceivedCount" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-                                <StackPanel><TextBlock Text="完整成绩平均分" Style="{StaticResource Caption}"/><TextBlock x:Name="Average" Style="{StaticResource Metric}"/></StackPanel>
+                                <StackPanel><TextBlock Text="当前平均分" Style="{StaticResource Caption}"/><TextBlock x:Name="Average" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-                                <StackPanel><TextBlock Text="完整成绩最高分" Style="{StaticResource Caption}"/><TextBlock x:Name="Best" Style="{StaticResource Metric}"/></StackPanel>
+                                <StackPanel><TextBlock Text="当前最高分" Style="{StaticResource Caption}"/><TextBlock x:Name="Best" Style="{StaticResource Metric}"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,10,0">
                                 <StackPanel><TextBlock Text="待复核人数" Style="{StaticResource Caption}"/><TextBlock x:Name="Pending" Style="{StaticResource Metric}" Foreground="{StaticResource Gold}"/></StackPanel>

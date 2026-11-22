@@ -82,20 +82,23 @@ namespace SWGrade.Probe
         private static void CheckClassroomDistribution()
         {
             var empty = new ClassroomStatistics(Array.Empty<Part3Report>());
-            Require(empty.Distribution.All(column => column.Count == 0 && column.FinalHeight == 0 && column.PendingHeight == 0),
-                "空课堂的成绩分布不显示柱高");
+            Require(empty.Distribution.All(column => column.Count == 0 && column.FinalHeight == 0 && column.PendingHeight == 0) &&
+                empty.Average == null && empty.Best == null, "空课堂的分布和统计保持空状态");
 
             var pending = new ClassroomStatistics(new[] { Score(58, 12), Score(72, 10), Score(72, 5) });
             Require(pending.Pending == 3 && pending.Distribution.Select(column => column.PendingCount).SequenceEqual(new[] { 1, 0, 2, 0, 0 }) &&
-                pending.Distribution[2].PendingHeight > 0 && pending.Average == null && pending.Best == null,
-                "所有提交待复核时按已得分显示柱状图");
+                pending.Distribution[2].PendingHeight > 0 && pending.Average == 202.0 / 3 && pending.Best == 72,
+                "所有提交待复核时仍按当前已得分计算分布和统计");
 
             var mixed = new ClassroomStatistics(new[] { Score(59, 5), Score(72), Score(72, 12), Score(100) });
             Require(mixed.Distribution.Sum(column => column.Count) == mixed.Submitted &&
                 mixed.Distribution[2].FinalCount == 1 && mixed.Distribution[2].PendingCount == 1 &&
                 mixed.Distribution[2].FinalHeight > 0 && mixed.Distribution[2].PendingHeight > 0 &&
-                mixed.Distribution[4].FinalCount == 1 && mixed.Average == 86 && mixed.Best == 100,
-                "同一分数段区分两种成绩，平均分和最高分取完整成绩");
+                mixed.Distribution[4].FinalCount == 1 && mixed.Average == 75.75 && mixed.Best == 100,
+                "同一分数段区分两种成绩，平均分涵盖全部提交");
+
+            var bestPending = new ClassroomStatistics(new[] { Score(72), Score(95, 5) });
+            Require(bestPending.Average == 83.5 && bestPending.Best == 95, "当前最高分可来自待复核的提交");
 
             Part3Report Score(int earned, int awaiting = 0)
             {
