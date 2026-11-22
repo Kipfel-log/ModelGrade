@@ -8,8 +8,6 @@ namespace SWGrade.SolidWorks
 {
     public static partial class CadAnalysis
     {
-        public const string Part3ReferenceHash = "a86b4f6304ff5ca2aff405c990b3ad6b620068230f77d2b8a88e4d4dce3e820b";
-
         public static Part3Report GradePart3(string referencePath, string studentPath, string expectedYear, Action<string> log)
         {
             return WithSession(expectedYear, log, (cad, session) =>
@@ -18,17 +16,19 @@ namespace SWGrade.SolidWorks
                 Part3Report result = null;
                 ModelInspectionResult reference = null;
                 ReadSavedCopy(cad, session, referencePath, null, sheetMetal: SheetMetalMode.RequireFlatPattern,
-                    recordInspection: model =>
-                    {
-                        if (model.DocumentHash != Part3ReferenceHash)
-                            throw new InvalidOperationException("请选择发布的零件 3 标准件。该文件与本题标准版本不一致。");
-                        reference = model;
-                    },
+                    recordInspection: model => reference = model,
                     inspectModel: model =>
                     {
                         var standard = Part3Evidence.Read(cad, probe, model, reference);
-                        if (standard.Shell == null || standard.Flat == null || standard.Steps.Any(step => step == null || !step.Healthy))
-                            throw new InvalidOperationException("标准件未能完整重建两个阶段或读取所有指定步骤。");
+                        var unreadable = Part3Evidence.Labels.Where((label, index) =>
+                        {
+                            var step = standard.Steps[index];
+                            return step == null || !step.Healthy || step.Values == null;
+                        }).ToArray();
+                        if (unreadable.Length > 0)
+                            throw new InvalidOperationException("标准件缺少或无法读取以下评分步骤：" + string.Join("、", unreadable) + "。");
+                        if (standard.Shell == null || standard.Flat == null)
+                            throw new InvalidOperationException("标准件无法重建抽壳态或展开态的单一实体。请用 SOLIDWORKS 核对后再判分。");
                         ModelInspectionResult student = null;
                         ReadSavedCopy(cad, session, studentPath, null, sheetMetal: SheetMetalMode.RequireFlatPattern,
                             recordInspection: inspection => student = inspection,

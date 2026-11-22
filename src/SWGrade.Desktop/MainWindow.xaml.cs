@@ -87,7 +87,7 @@ namespace SWGrade.Desktop
 
         private void PickReference(object sender, RoutedEventArgs args)
         {
-            var path = SelectFile("选择正式标准件", "SOLIDWORKS 零件 (*.SLDPRT)|*.SLDPRT");
+            var path = SelectFile("选择本次评分的标准件", "SOLIDWORKS 零件 (*.SLDPRT)|*.SLDPRT");
             if (path == null)
                 return;
             reference = path;

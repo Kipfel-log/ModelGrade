@@ -26,7 +26,7 @@
                     <Border Style="{StaticResource Panel}">
                         <StackPanel>
                             <TextBlock Text="标准件" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock x:Name="ReferenceName" Text="请选择本题发布的零件3.SLDPRT" TextWrapping="Wrap" Margin="0,2,0,10"/>
+                            <TextBlock x:Name="ReferenceName" Text="请选择教师指定的标准件（.SLDPRT）" TextWrapping="Wrap" Margin="0,2,0,10"/>
                             <Button Content="选择标准件…" Click="PickReference" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>

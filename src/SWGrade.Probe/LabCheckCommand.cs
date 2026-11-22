@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using SWGrade.SolidWorks;
@@ -90,10 +89,10 @@ namespace SWGrade.Probe
                 if (referenceIssue != null)
                 {
                     output.WriteLine("【标准件检查失败】" + referenceIssue);
-                    output.WriteLine("【怎么处理】把机房试用包完整解压到本地目录，保留 reference 目录中的原始标准件。");
+                    output.WriteLine("【怎么处理】在 reference 目录放入可读取的零件3.SLDPRT，再运行检测。");
                 }
                 else
-                    output.WriteLine("【标准件核对通过】文件与发布版本一致。");
+                    output.WriteLine("【标准件文件可读取】特征和几何由判分自检核对。");
 
                 if (!connection.CanAnalyze || referenceIssue != null)
                 {
@@ -145,12 +144,7 @@ namespace SWGrade.Probe
             try
             {
                 using (var stream = File.OpenRead(path))
-                using (var sha = SHA256.Create())
-                {
-                    string hash = BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
-                    return string.Equals(hash, CadAnalysis.Part3ReferenceHash, StringComparison.OrdinalIgnoreCase)
-                        ? null : "随包标准件已被改动或替换。";
-                }
+                    return stream.Length > 0 ? null : "reference 目录里的标准件是空文件。";
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
             {
